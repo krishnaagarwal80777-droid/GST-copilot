@@ -28,3 +28,11 @@ data/processed/*
 # Eval caches (results CSVs and eval/questions.jsonl stay tracked)
 eval/.cache/
 eval/results/*.tmp
+
+
+# Documentation
+docs/
+
+# Claude
+CLAUDE.md
+claude.md
