@@ -1,0 +1,144 @@
+# Official sources only (CBIC, India Code, PRS copy of the enacted text).
+# Run from your own terminal:  python -m ingest.acquire
+# CBIC "as on" snapshots of the same Act are used for version diffs.
+sources:
+  # --- CGST Act: dated consolidated snapshots (CBIC) ---
+  - name: CGST Act as on 30.09.2020 (CBIC)
+    url: https://cbic-gst.gov.in/pdf/CGST-Act-Updated-30092020.pdf
+    filename: cgst-act_2020-09-30.pdf
+  - name: CGST Act as on 01.08.2021 (CBIC)
+    url: https://cbic-gst.gov.in/pdf/CGST-Act-Updated-01082021.pdf
+    filename: cgst-act_2021-08-01.pdf
+  - name: CGST Act as on 31.08.2021 (CBIC)
+    url: https://cbic-gst.gov.in/pdf/CGST-Act-Updated-31082021.pdf
+    filename: cgst-act_2021-08-31.pdf
+  # TODO: add the latest CGST Act snapshot from https://cbic-gst.gov.in (Acts section)
+
+  # --- IGST Act ---
+  - name: IGST Act (India Code)
+    url: https://indiacode.nic.in/bitstream/123456789/7773/1/igst-act.pdf
+    filename: igst-act_indiacode.pdf
+  - name: IGST Act 2017 as enacted (PRS India copy)
+    url: https://prsindia.org/files/bills_acts/bills_parliament/2017/Integrated%20GST%20Act,%202017.pdf
+    filename: igst-act_2017_as-enacted.pdf
+
+  # --- CGST Rules: dated snapshots (CBIC) ---
+  - name: CGST Rules 2017 Part A as on 23.04.2019 (CBIC)
+    url: https://cbic-gst.gov.in/pdf/23042019-CGST-Rules-2017-Part-A-Rules.pdf
+    filename: cgst-rules-part-a_2019-04-23.pdf
+  - name: CGST Rules 2017 Part A as on 18.05.2021 (CBIC)
+    url: https://cbic-gst.gov.in/pdf/18052021-CGST-Rules-2017-Part-A-Rules.pdf
+    filename: cgst-rules-part-a_2021-05-18.pdf
+  # TODO: latest CGST Rules snapshot from the CBIC portal
+
+  # TODO (phase 2 of sources): central tax rate notifications incl. the 2025 changes,
+  # CBIC circulars and GST FAQs. Find them on the CBIC portal, not third-party sites.
+
+  # --- Central Tax notifications 2025 (CBIC tax information portal) ---
+  # Direct PDF path: https://taxinformation.cbic.gov.in/content/pdf/<docFilePath>
+  # 17/2025 (GSTR-3B due-date extension) intentionally skipped.
+  - name: "20/2025-Central Tax (2025-12-31): CGST (Fifth Amendment) Rules, 2025"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/20-2025-ct.pdf
+    filename: ct-20-2025_2025-12-31.pdf
+  - name: "19/2025-Central Tax (2025-12-31): supplies under s15(5) valued on retail sale price"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/19-2025-ct.pdf
+    filename: ct-19-2025_2025-12-31.pdf
+  - name: "18/2025-Central Tax (2025-10-31): CGST (Fourth Amendment) Rules 2025"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/gst-ct-18-2025.pdf
+    filename: ct-18-2025_2025-10-31.pdf
+  - name: "16/2025-Central Tax (2025-09-17): Finance Act 2025 ss121(ii),(iii), 122-124, 126-134 into force"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/centaltax-16-2025.pdf
+    filename: ct-16-2025_2025-09-17.pdf
+  - name: "15/2025-Central Tax (2025-09-17): annual return exemption below Rs 2 crore turnover"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/centaltax-15-2025.pdf
+    filename: ct-15-2025_2025-09-17.pdf
+  - name: "14/2025-Central Tax (2025-09-17): category of persons under s54(6)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/centaltax-14-2025.pdf
+    filename: ct-14-2025_2025-09-17.pdf
+  - name: "13/2025-Central Tax (2025-09-17): CGST (Third Amendment) Rules 2025"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/centaltax-13-2025.pdf
+    filename: ct-13-2025_2025-09-17.pdf
+
+  # --- Central Tax (Rate) notifications: 2017 base schedules, all of 2025, 2026 (CBIC tax information portal) ---
+  # Skipped: 10/2025-CT(Rate) corrigendum (no PDF on portal), 01/2026-Central Tax (GSTR-3B due date).
+  # Not found on portal list: 12/2017 and 13/2017-CT(Rate) base notifications; add manually if needed.
+  - name: "1/2017-Central Tax (Rate) (2017-06-28): CGST rate schedule for goods under s9(1) (superseded by 9/2025)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/Notification-for-CGST-rate-Schedule.pdf
+    filename: ctr-1-2017_2017-06-28.pdf
+  - name: "2/2017-Central Tax (Rate) (2017-06-28): CGST exempt goods under s11(1) (superseded by 10/2025)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/Notification-for-CGST-exemption.pdf
+    filename: ctr-2-2017_2017-06-28.pdf
+  - name: "11/2017-Central Tax (Rate) (2017-06-28): Rates for supply of services"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/Notification11-CGST.pdf
+    filename: ctr-11-2017_2017-06-28.pdf
+  - name: "01/2025-Central Tax (Rate) (2025-01-16): Amends 01/2017-CT(Rate)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr01-2025.pdf
+    filename: ctr-01-2025_2025-01-16.pdf
+  - name: "02/2025-Central Tax (Rate) (2025-01-16): Amends 02/2017-CT(Rate)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr02-2025.pdf
+    filename: ctr-02-2025_2025-01-16.pdf
+  - name: "03/2025-Central Tax (Rate) (2025-01-16): Amends 39/2017-CT(Rate)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr03-2025.pdf
+    filename: ctr-03-2025_2025-01-16.pdf
+  - name: "04/2025-Central Tax (Rate) (2025-01-16): Amends 08/2018-CT(Rate)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr04-2025.pdf
+    filename: ctr-04-2025_2025-01-16.pdf
+  - name: "05/2025-Central Tax (Rate) (2025-01-16): Amends 11/2017-CT(Rate), 55th GST Council"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr05-2025.pdf
+    filename: ctr-05-2025_2025-01-16.pdf
+  - name: "06/2025-Central Tax (Rate) (2025-01-16): Amends 12/2017-CT(Rate), 55th GST Council"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr06-2025.pdf
+    filename: ctr-06-2025_2025-01-16.pdf
+  - name: "07/2025-Central Tax (Rate) (2025-01-16): Amends 13/2017-CT(Rate), 55th GST Council"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr07-2025.pdf
+    filename: ctr-07-2025_2025-01-16.pdf
+  - name: "08/2025-Central Tax (Rate) (2025-01-16): Amends 17/2017-CT(Rate), 55th GST Council"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr08-2025.pdf
+    filename: ctr-08-2025_2025-01-16.pdf
+  - name: "09/2025-Central Tax (Rate) (2025-09-17): Supersedes 1/2017-CT(Rate): new goods rate schedule"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/09-2025-CTR-eng.pdf
+    filename: ctr-09-2025_2025-09-17.pdf
+  - name: "09/2025 corrigendum-Central Tax (Rate) (2025-09-18): Corrigendum to 9/2025-CT(Rate)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/09-2025-CTR-corr-eng.pdf
+    filename: ctr-09-2025-corr_2025-09-18.pdf
+  - name: "10/2025-Central Tax (Rate) (2025-09-17): Supersedes 2/2017-CT(Rate): exempt goods"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/10-2025-CTR-eng.pdf
+    filename: ctr-10-2025_2025-09-17.pdf
+  - name: "11/2025-Central Tax (Rate) (2025-09-17): Amends 3/2017-CT(Rate)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/11-2025-CTR-eng.pdf
+    filename: ctr-11-2025_2025-09-17.pdf
+  - name: "12/2025-Central Tax (Rate) (2025-09-17): Amends 8/2018-CT(Rate)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/12-2025-CTR-eng.pdf
+    filename: ctr-12-2025_2025-09-17.pdf
+  - name: "13/2025-Central Tax (Rate) (2025-09-17): Amends 21/2018-CT(Rate)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/13-2025-CTR-eng.pdf
+    filename: ctr-13-2025_2025-09-17.pdf
+  - name: "14/2025-Central Tax (Rate) (2025-09-17): GST rate for bricks"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/14-2025-CTR-eng.pdf
+    filename: ctr-14-2025_2025-09-17.pdf
+  - name: "15/2025-Central Tax (Rate) (2025-09-17): Amends 11/2017-CT(Rate) (services rates), 56th GST Council"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/15-2025-CTR-eng.pdf
+    filename: ctr-15-2025_2025-09-17.pdf
+  - name: "16/2025-Central Tax (Rate) (2025-09-17): Amends 12/2017-CT(Rate) (services exemptions), 56th GST Council"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/16-2025-CTR-eng.pdf
+    filename: ctr-16-2025_2025-09-17.pdf
+  - name: "17/2025-Central Tax (Rate) (2025-09-17): Amends 17/2017-CT(Rate), 56th GST Council"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/17-2025-CTR-eng.pdf
+    filename: ctr-17-2025_2025-09-17.pdf
+  - name: "18/2025-Central Tax (Rate) (2025-10-24): Amends 26/2018-CT(Rate)"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/18-2025-CTR-Eng.pdf
+    filename: ctr-18-2025_2025-10-24.pdf
+  - name: "19/2025-Central Tax (Rate) (2025-12-31): Amends 9/2025-CT(Rate): tobacco products"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/19-2025-CTR-Eng.pdf
+    filename: ctr-19-2025_2025-12-31.pdf
+  - name: "01/2026-Central Tax (Rate) (2026-04-30): Amends 9/2025-CT(Rate) to align with Finance Act 2026"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/CTR-E-updated.pdf
+    filename: ctr-01-2026_2026-04-30.pdf
+  - name: "02/2026-Central Tax (2026-05-07): Principal Bench of Appellate Tribunal to hear appeals under s101B"
+    url: https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/central-tax-02-gst-10062026.pdf
+    filename: ct-02-2026_2026-05-07.pdf
+
+# --- Local files (added manually from the CBIC tax information portal; no direct URL) ---
+# data/raw/cgst-act_cbic-taxinfo_2022-09-28.pdf  CGST Act, "Last Updated: 28-September-2022"
+# data/raw/igst-act_cbic-taxinfo_2020-03-27.pdf  IGST Act, "Last Updated: 27-March-2020"
+# Footnotes give the amending instrument, the w.e.f. date and, for substitutions, the OLD text.

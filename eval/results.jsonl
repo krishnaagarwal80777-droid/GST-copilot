@@ -1,0 +1,1 @@
+{"answerable": 4, "by_category": {"abstain": 1, "date_sensitive": 1, "direct_lookup": 2, "numeric": 1}, "config": "baseline", "dataset": "C:\\Users\\KRISHNA AGARWAL\\projects\\gst-copilot\\eval\\questions.jsonl", "num_items": 5, "run_at": "2026-10-08T08:19:07.477908+00:00", "unanswerable": 1}

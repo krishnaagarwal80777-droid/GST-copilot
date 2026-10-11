@@ -1,0 +1,685 @@
+[
+  {
+    "name": "CGST Act as on 30.09.2020 (CBIC)",
+    "filename": "cgst-act_2020-09-30.pdf",
+    "url": "https://cbic-gst.gov.in/pdf/CGST-Act-Updated-30092020.pdf",
+    "downloaded_at": "2026-10-08T10:42:05.403077+00:00",
+    "sha256": "4db47a4ed2af6e61864049facb85b2dad940590df5239967062efd19d2d40fb4"
+  },
+  {
+    "name": "CGST Act as on 01.08.2021 (CBIC)",
+    "filename": "cgst-act_2021-08-01.pdf",
+    "url": "https://cbic-gst.gov.in/pdf/CGST-Act-Updated-01082021.pdf",
+    "downloaded_at": "2026-10-08T10:42:05.406541+00:00",
+    "sha256": "f7317f3ae40c2f41ab777acbd49fca309f10d8686640dea1bf215cf4c48754e7"
+  },
+  {
+    "name": "CGST Act as on 31.08.2021 (CBIC)",
+    "filename": "cgst-act_2021-08-31.pdf",
+    "url": "https://cbic-gst.gov.in/pdf/CGST-Act-Updated-31082021.pdf",
+    "downloaded_at": "2026-10-08T10:42:05.409966+00:00",
+    "sha256": "1ff27caaf1293da6578e4184e1df429f52ac53e5022b82bf20d42db887ad9f7f"
+  },
+  {
+    "name": "IGST Act 2017 as enacted (PRS India copy)",
+    "filename": "igst-act_2017_as-enacted.pdf",
+    "url": "https://prsindia.org/files/bills_acts/bills_parliament/2017/Integrated%20GST%20Act,%202017.pdf",
+    "downloaded_at": "2026-10-08T10:45:21.977120+00:00",
+    "sha256": "7f7d29cc82f858653510cf181f6e54a9864a076aed0a3dc7f88c0ac538a3cf75"
+  },
+  {
+    "name": "CGST Rules 2017 Part A as on 23.04.2019 (CBIC)",
+    "filename": "cgst-rules-part-a_2019-04-23.pdf",
+    "url": "https://cbic-gst.gov.in/pdf/23042019-CGST-Rules-2017-Part-A-Rules.pdf",
+    "downloaded_at": "2026-10-08T10:45:21.980497+00:00",
+    "sha256": "1ded0b167e5ee5f27fa2afd49d72cd209ded44e94024b446fe3c3de6d9674c29"
+  },
+  {
+    "name": "CGST Rules 2017 Part A as on 18.05.2021 (CBIC)",
+    "filename": "cgst-rules-part-a_2021-05-18.pdf",
+    "url": "https://cbic-gst.gov.in/pdf/18052021-CGST-Rules-2017-Part-A-Rules.pdf",
+    "downloaded_at": "2026-10-08T10:45:21.983874+00:00",
+    "sha256": "93a378e34cad271eef0bfed2c8b0e9665cc3c37d57af6995e7e786082bab9fb3"
+  },
+  {
+    "name": "20/2025-Central Tax (2025-12-31): CGST (Fifth Amendment) Rules, 2025",
+    "filename": "ct-20-2025_2025-12-31.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/20-2025-ct.pdf",
+    "downloaded_at": "2026-10-08T10:45:21.986378+00:00",
+    "sha256": "569b2b7ce3559fab74378d5840f30afe548991366f037c0deec241281069954a"
+  },
+  {
+    "name": "19/2025-Central Tax (2025-12-31): supplies under s15(5) valued on retail sale price",
+    "filename": "ct-19-2025_2025-12-31.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/19-2025-ct.pdf",
+    "downloaded_at": "2026-10-08T10:45:21.988002+00:00",
+    "sha256": "4e34a30f70f93e9334fc29f7666c4c84ca850333bd9535b9becd4f0b788d4b97"
+  },
+  {
+    "name": "18/2025-Central Tax (2025-10-31): CGST (Fourth Amendment) Rules 2025",
+    "filename": "ct-18-2025_2025-10-31.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/gst-ct-18-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:21.990110+00:00",
+    "sha256": "d9209ed0006a605befc9d6a241bce9fc670be225a026e32a303494098e1114e4"
+  },
+  {
+    "name": "16/2025-Central Tax (2025-09-17): Finance Act 2025 ss121(ii),(iii), 122-124, 126-134 into force",
+    "filename": "ct-16-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/centaltax-16-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:21.992220+00:00",
+    "sha256": "0eb7533d929b8e7808bff3970165e0ad345215e365a869b38ee0914ee073dbec"
+  },
+  {
+    "name": "15/2025-Central Tax (2025-09-17): annual return exemption below Rs 2 crore turnover",
+    "filename": "ct-15-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/centaltax-15-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:21.994022+00:00",
+    "sha256": "5546720d0ff3a551ca80fe3e12c8e20e16da0565e5476c3c7a4137b0bf25ac2c"
+  },
+  {
+    "name": "14/2025-Central Tax (2025-09-17): category of persons under s54(6)",
+    "filename": "ct-14-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/centaltax-14-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:21.995565+00:00",
+    "sha256": "768bfb1992c41e4dc50ae1c0bd30f5f4b6f2bf4a9e8b954f0ffcc0132d89a78e"
+  },
+  {
+    "name": "13/2025-Central Tax (2025-09-17): CGST (Third Amendment) Rules 2025",
+    "filename": "ct-13-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/centaltax-13-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:21.997423+00:00",
+    "sha256": "fc9e9d83f5506dc14cad21bbc79175541520b67ff95bc576f76fb7eceeb50459"
+  },
+  {
+    "name": "1/2017-Central Tax (Rate) (2017-06-28): CGST rate schedule for goods under s9(1) (superseded by 9/2025)",
+    "filename": "ctr-1-2017_2017-06-28.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/Notification-for-CGST-rate-Schedule.pdf",
+    "downloaded_at": "2026-10-08T10:45:23.533124+00:00",
+    "sha256": "ac8ebc5717046375f8a3e0e8f17b8c1dae4c429ff15a48d06e29b9a674c62b75",
+    "wrapper_sha256": "0a5ccd4acd392667c03bca1da80f1cf1673ea54445a9773b4441068762e3ca25"
+  },
+  {
+    "name": "2/2017-Central Tax (Rate) (2017-06-28): CGST exempt goods under s11(1) (superseded by 10/2025)",
+    "filename": "ctr-2-2017_2017-06-28.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/Notification-for-CGST-exemption.pdf",
+    "downloaded_at": "2026-10-08T10:45:23.827194+00:00",
+    "sha256": "a3901bceb66bbf3443b4f669420896651e0219ae59383d1233277ce85a1babf3",
+    "wrapper_sha256": "37fd25507e1cce24158bddfb868c58367e2721ebca9aa187025a3f3249a0f580"
+  },
+  {
+    "name": "11/2017-Central Tax (Rate) (2017-06-28): Rates for supply of services",
+    "filename": "ctr-11-2017_2017-06-28.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/Notification11-CGST.pdf",
+    "downloaded_at": "2026-10-08T10:45:24.145715+00:00",
+    "sha256": "a8051c8882b8a7e3e2d8b2ad10e3c18b9c85c755fbbfe324dce43b4c6b44d934",
+    "wrapper_sha256": "57f7545aacc1f73bf1e23404368ef323c75101092df00f6556a2928e6cb856c3"
+  },
+  {
+    "name": "01/2025-Central Tax (Rate) (2025-01-16): Amends 01/2017-CT(Rate)",
+    "filename": "ctr-01-2025_2025-01-16.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr01-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:24.369403+00:00",
+    "sha256": "1cb5894e725363b48ead12b5c8ff8074f2a13df17cb40790516afc279b0e6e52",
+    "wrapper_sha256": "5335dd299100a1df281b31427fcee323ddaaa047df644bd3318c965eaf4770fd"
+  },
+  {
+    "name": "02/2025-Central Tax (Rate) (2025-01-16): Amends 02/2017-CT(Rate)",
+    "filename": "ctr-02-2025_2025-01-16.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr02-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:24.586497+00:00",
+    "sha256": "162c42ce3e82dddc9015071058e80fe74461c76a11c14969430eedc1b974417e",
+    "wrapper_sha256": "1361fa4faba26b717690974125ae16e4c9a3c17a8c941a199c32f9030a5caab7"
+  },
+  {
+    "name": "03/2025-Central Tax (Rate) (2025-01-16): Amends 39/2017-CT(Rate)",
+    "filename": "ctr-03-2025_2025-01-16.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr03-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:24.786399+00:00",
+    "sha256": "f89b214006a1257c4ba5054f99a1908a72ebfff1b2a65b556267a50ec1b11870",
+    "wrapper_sha256": "c532cc20bc8ff8a4b1777724406c85aeabc1ef6230ac3d7db7fc994d5e333741"
+  },
+  {
+    "name": "04/2025-Central Tax (Rate) (2025-01-16): Amends 08/2018-CT(Rate)",
+    "filename": "ctr-04-2025_2025-01-16.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr04-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:25.021079+00:00",
+    "sha256": "70462f449d835a68687b82b8fbcfdd2516fef48f88dd026bbe450cc028e06120",
+    "wrapper_sha256": "6cd3da15fa2a5502261fe9b1919c41045464ec25a2b87cbbc907aff82e456095"
+  },
+  {
+    "name": "05/2025-Central Tax (Rate) (2025-01-16): Amends 11/2017-CT(Rate), 55th GST Council",
+    "filename": "ctr-05-2025_2025-01-16.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr05-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:25.205263+00:00",
+    "sha256": "98c0a5cc057189f7d36d45885c8b0fee9b2948dd66e5aef09c3e634fc704776f",
+    "wrapper_sha256": "37529b1df156979053c37edf8b37af32b0e5c9c14f6139c9e26b953ca7dc4b2e"
+  },
+  {
+    "name": "06/2025-Central Tax (Rate) (2025-01-16): Amends 12/2017-CT(Rate), 55th GST Council",
+    "filename": "ctr-06-2025_2025-01-16.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr06-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:25.345240+00:00",
+    "sha256": "c68547d45d3ee82b9cd5fe422d6eb866ae77cc681b01999b58e8cbe3b1f971d4",
+    "wrapper_sha256": "483abf89803bdf5655493a374b6412ba56ba28777959e68efcaaf8e65d77df1a"
+  },
+  {
+    "name": "07/2025-Central Tax (Rate) (2025-01-16): Amends 13/2017-CT(Rate), 55th GST Council",
+    "filename": "ctr-07-2025_2025-01-16.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr07-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:25.479639+00:00",
+    "sha256": "bf0434257c392c2c348ee547c425dd36aea7db150ef92843785d4b4b6d72ed28",
+    "wrapper_sha256": "fc0578dd535d9fbf6947caa1ff75b0f47fdad2ccd7c7f16c74898d2518650435"
+  },
+  {
+    "name": "08/2025-Central Tax (Rate) (2025-01-16): Amends 17/2017-CT(Rate), 55th GST Council",
+    "filename": "ctr-08-2025_2025-01-16.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/ctr08-2025.pdf",
+    "downloaded_at": "2026-10-08T10:45:25.620698+00:00",
+    "sha256": "9210875981c1668848f289e8624fe3d200c12330117308abf53c1972adc89837",
+    "wrapper_sha256": "c7bc1d8a076d207cbec2ea7cd521050f89f39b8f67e277b781cdede65cac35b6"
+  },
+  {
+    "name": "09/2025-Central Tax (Rate) (2025-09-17): Supersedes 1/2017-CT(Rate): new goods rate schedule",
+    "filename": "ctr-09-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/09-2025-CTR-eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:26.014064+00:00",
+    "sha256": "0362838d241f2e6752deb1ef93e0418e55418da3a67a4cf1f4294e7b7cf8b4f5",
+    "wrapper_sha256": "5c400628caee161ae16d64e81cd86992f5339ef200bcc2ad7f5c0a5f3ca59fcd"
+  },
+  {
+    "name": "09/2025 corrigendum-Central Tax (Rate) (2025-09-18): Corrigendum to 9/2025-CT(Rate)",
+    "filename": "ctr-09-2025-corr_2025-09-18.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/09-2025-CTR-corr-eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:26.191118+00:00",
+    "sha256": "bc9a248acd177694652f835ba719b96d2dad9cc13a976d4c122dde6b6e1a4e78",
+    "wrapper_sha256": "3673bb52b0fc9d7bb813a575978776bc476d3a479393f6099fdc13cff30d90e5"
+  },
+  {
+    "name": "10/2025-Central Tax (Rate) (2025-09-17): Supersedes 2/2017-CT(Rate): exempt goods",
+    "filename": "ctr-10-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/10-2025-CTR-eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:26.425331+00:00",
+    "sha256": "e2b0514786aafd3c4012d7218c736fb763d4b719a6bb88ba16ff1784a4e3bf97",
+    "wrapper_sha256": "8d7786e50c8acd5ddbc83221de3c3828368d7e0bdf7a6d1d4ff2cf1df773ee35"
+  },
+  {
+    "name": "11/2025-Central Tax (Rate) (2025-09-17): Amends 3/2017-CT(Rate)",
+    "filename": "ctr-11-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/11-2025-CTR-eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:26.581336+00:00",
+    "sha256": "7f3f3884d90e4c84ea6c5b4b596422a01821a7198b2d9afd8e5f985222fb60d2",
+    "wrapper_sha256": "ebeb7dd25ba15f02d97ffb5f4e664102cc026acc0ed80d2c8d44dbc9416ae4f3"
+  },
+  {
+    "name": "12/2025-Central Tax (Rate) (2025-09-17): Amends 8/2018-CT(Rate)",
+    "filename": "ctr-12-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/12-2025-CTR-eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:26.737895+00:00",
+    "sha256": "717c8b4f320fcc3484708b2aedbbceada863c0f096c41bce8f4ba26690ed20e4",
+    "wrapper_sha256": "35f8d6fc5987d7c1cc9d5129188e82f1e64d85d507015cc161a240849191282f"
+  },
+  {
+    "name": "13/2025-Central Tax (Rate) (2025-09-17): Amends 21/2018-CT(Rate)",
+    "filename": "ctr-13-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/13-2025-CTR-eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:26.933614+00:00",
+    "sha256": "3899beeaba2b10ca1c5efd1a85a46e429bb0b2ca2379558c85718ca834c97c16",
+    "wrapper_sha256": "f4bc06fa8f7442ff3dfad8c84e06ef6a8df1efe80b9582a5771bfacc1779ed3e"
+  },
+  {
+    "name": "14/2025-Central Tax (Rate) (2025-09-17): GST rate for bricks",
+    "filename": "ctr-14-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/14-2025-CTR-eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:27.101901+00:00",
+    "sha256": "ed680806c25634d2b79ad1cdd942bbdbd2974f75d588a58f86ba98b8ec786296",
+    "wrapper_sha256": "650e5c394c78370b19f546c89953ece53b5c920f9365c62dec101f241229e42c"
+  },
+  {
+    "name": "15/2025-Central Tax (Rate) (2025-09-17): Amends 11/2017-CT(Rate) (services rates), 56th GST Council",
+    "filename": "ctr-15-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/15-2025-CTR-eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:27.276847+00:00",
+    "sha256": "46c9447579017d8bf1fefd75b6e6a48856dab7b23e44c7e06babfdc99ae9d289",
+    "wrapper_sha256": "ff71e8ee66491978d98b839c1cfdf2ab921a3d10ff9c9a575249845e8908d535"
+  },
+  {
+    "name": "16/2025-Central Tax (Rate) (2025-09-17): Amends 12/2017-CT(Rate) (services exemptions), 56th GST Council",
+    "filename": "ctr-16-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/16-2025-CTR-eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:27.423569+00:00",
+    "sha256": "9c0930815ba100d2c70379e784190b7616fe759028da7ec963eec49226be6644",
+    "wrapper_sha256": "c946011a7e3ad7b09b055e0003e8480c583761e24afc37438347d5425d538546"
+  },
+  {
+    "name": "17/2025-Central Tax (Rate) (2025-09-17): Amends 17/2017-CT(Rate), 56th GST Council",
+    "filename": "ctr-17-2025_2025-09-17.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/17-2025-CTR-eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:27.564145+00:00",
+    "sha256": "269f4270a4b2e76804a198953f449c3ed03acbb0ca9bf094a67e93c7a2e5f0c4",
+    "wrapper_sha256": "c49847cf1fd37644db8aae0859f1d4caba8878c2a0db06e8ae29641fab351126"
+  },
+  {
+    "name": "18/2025-Central Tax (Rate) (2025-10-24): Amends 26/2018-CT(Rate)",
+    "filename": "ctr-18-2025_2025-10-24.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/18-2025-CTR-Eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:27.786574+00:00",
+    "sha256": "79c8a731c7213cee10db50bda824f30512992aff1597721d9f1a792bc4e83b23",
+    "wrapper_sha256": "2d52c59712c26975d62947aea2d96ccb29fd806ee2afd693098bb6e4127d9c86",
+    "no_text_layer": true
+  },
+  {
+    "name": "19/2025-Central Tax (Rate) (2025-12-31): Amends 9/2025-CT(Rate): tobacco products",
+    "filename": "ctr-19-2025_2025-12-31.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/19-2025-CTR-Eng.pdf",
+    "downloaded_at": "2026-10-08T10:45:28.149486+00:00",
+    "sha256": "a380b42dcc7f359db19fed05060ba6569610c5c92d6356a3c50fcdb2c6b05a60",
+    "wrapper_sha256": "de669e56235b23506daba18987dedc11bdb7d6c7ceb1747f4c16b02d38dbb38e"
+  },
+  {
+    "name": "01/2026-Central Tax (Rate) (2026-04-30): Amends 9/2025-CT(Rate) to align with Finance Act 2026",
+    "filename": "ctr-01-2026_2026-04-30.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/CTR-E-updated.pdf",
+    "downloaded_at": "2026-10-08T10:45:28.441888+00:00",
+    "sha256": "241c5e76584742e55f1e4ed8630310f03d624728072982761ad865cfd9379dab",
+    "wrapper_sha256": "7c44032b250fe2bc47434613b46aeb2de18c2a51c6c92ced3d445928b73417ab"
+  },
+  {
+    "name": "02/2026-Central Tax (2026-05-07): Principal Bench of Appellate Tribunal to hear appeals under s101B",
+    "filename": "ct-02-2026_2026-05-07.pdf",
+    "url": "https://taxinformation.cbic.gov.in/content/pdf/tax_repository/gst/notifications/central-tax-02-gst-10062026.pdf",
+    "downloaded_at": "2026-10-08T10:45:28.448727+00:00",
+    "sha256": "83df8feb5d22079ba6f49af5a33c7d8a0fbe4373595c5a98c209ac83a05856f9"
+  },
+  {
+    "name": "cgst-act_cbic-taxinfo_2022-09-28",
+    "filename": "cgst-act_cbic-taxinfo_2022-09-28.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:05:53.073223+00:00",
+    "sha256": "75f6bf4246fc1d786f63a0c8c6ec3121552ec239f73099bcb69ec3975ce31445"
+  },
+  {
+    "name": "ct-01-2021_2021-01-01",
+    "filename": "ct-01-2021_2021-01-01.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:52.142658+00:00",
+    "sha256": "85491ce8d0e1254db23fbeb95b39c5f51953b1e4b59f4b700403411455c34cd5"
+  },
+  {
+    "name": "ct-04-2023_2023-03-31",
+    "filename": "ct-04-2023_2023-03-31.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:21:49.784362+00:00",
+    "sha256": "3e3ca13db40f414e6c18f3863f515704c771624effc2990f633319e6cc1fdf05"
+  },
+  {
+    "name": "ct-05-2023_2023-03-31",
+    "filename": "ct-05-2023_2023-03-31.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:21:50.363195+00:00",
+    "sha256": "e288147e1e7b7d10bd21a85445430c97b344e75ddb4f0b63b029b4b1e57c3934"
+  },
+  {
+    "name": "ct-07-2021_2021-04-27",
+    "filename": "ct-07-2021_2021-04-27.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:53.199271+00:00",
+    "sha256": "810cbd68a6b68eaf478650c11f5ad1ba7789176504538d07df7c5e9eb0ba18ab"
+  },
+  {
+    "name": "ct-07-2025_2025-01-23",
+    "filename": "ct-07-2025_2025-01-23.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:22.731919+00:00",
+    "sha256": "1b06b1d0b1ac793e6176f536cc4415bb198cf89f0d6156f6b4635e685e4510cb"
+  },
+  {
+    "name": "ct-08-2025_2025-01-23",
+    "filename": "ct-08-2025_2025-01-23.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:23.561241+00:00",
+    "sha256": "65da8b67a32e687317934dd6b48e0e0a1fd6d1a0dbdbd2260ed94241be292a31"
+  },
+  {
+    "name": "ct-09-2022_2022-07-05",
+    "filename": "ct-09-2022_2022-07-05.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:47.568144+00:00",
+    "sha256": "1e931c536bf382f394154cc0e37a61f681ce589368d0014597c3c96f0a56c5e8"
+  },
+  {
+    "name": "ct-09-2025_2025-02-11",
+    "filename": "ct-09-2025_2025-02-11.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:21:51.185068+00:00",
+    "sha256": "1768c2020df73dae8383e0ddb0dd67bfd797e7b25385dfbd8902a2f0cfe45394"
+  },
+  {
+    "name": "ct-11-2025_2025-03-27",
+    "filename": "ct-11-2025_2025-03-27.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:27.949362+00:00",
+    "sha256": "21840fda06b0f7273ad6257c1653d5b213cf5a0429eebc7caf7e6c42126a5ef1"
+  },
+  {
+    "name": "ct-12-2024_2024-07-10",
+    "filename": "ct-12-2024_2024-07-10.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:21.409228+00:00",
+    "sha256": "10e879eeac36d78c58e31ff96091fec8d78a80525ed18d62bb827fdae77e9017"
+  },
+  {
+    "name": "ct-13-2021_2021-05-01",
+    "filename": "ct-13-2021_2021-05-01.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:54.302088+00:00",
+    "sha256": "72ed91c214d3e75f8ea14434269dd0a170ae769f92bc9c6bad7f6bdc6141125d"
+  },
+  {
+    "name": "ct-14-2022_2022-07-05",
+    "filename": "ct-14-2022_2022-07-05.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:46.778462+00:00",
+    "sha256": "eb330e3a6b91ad96f65aaefb65698a18cbe284ce17c4fcfd0f3f8bcddb6cf01c"
+  },
+  {
+    "name": "ct-15-2021_2021-05-18",
+    "filename": "ct-15-2021_2021-05-18.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:55.357474+00:00",
+    "sha256": "950db36ddc7bbd31171b54f8613cd57ea7faa80dedeb4c345158364b4bd4e702"
+  },
+  {
+    "name": "ct-15-2024_2024-07-10",
+    "filename": "ct-15-2024_2024-07-10.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:22.066296+00:00",
+    "sha256": "fdb2b828b6e3048e9725b8ea09bd5f576c63a711450b273d129eb9a361dc3fbe"
+  },
+  {
+    "name": "ct-16-2024_2024-08-06",
+    "filename": "ct-16-2024_2024-08-06.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:22:55.522308+00:00",
+    "sha256": "77c3bc403b3ad03c33a72156e88a3b5260f1318a1fe64f38bb94fdb43ea9411b"
+  },
+  {
+    "name": "ct-17-2024_2024-09-27",
+    "filename": "ct-17-2024_2024-09-27.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:22:56.211004+00:00",
+    "sha256": "c7cf57d531acb3010f139e6278591d5c02a77e141338e8b0dc261c2877ea53d9"
+  },
+  {
+    "name": "ct-18-2022_2022-09-28",
+    "filename": "ct-18-2022_2022-09-28.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:45.781429+00:00",
+    "sha256": "2a63bab13ec3bcf06c8d9749871a9dfce488bd6c209de953e358976e503a1d24"
+  },
+  {
+    "name": "ct-19-2022_2022-09-28",
+    "filename": "ct-19-2022_2022-09-28.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:48.273065+00:00",
+    "sha256": "e15d917d4a0adc70c2172e201b60a333c8ba55267abac219db8725e14b7f3fb4"
+  },
+  {
+    "name": "ct-20-2024_2024-10-08",
+    "filename": "ct-20-2024_2024-10-08.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:24.520024+00:00",
+    "sha256": "b57d64a08c88278af0b8d9226c2261ba74968bf82df11d4841cf4a2859e62f1b"
+  },
+  {
+    "name": "ct-21-2024_2024-10-08",
+    "filename": "ct-21-2024_2024-10-08.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:25.326889+00:00",
+    "sha256": "abf7db6ef4abf6ba8757ba681f5863eee1e47dfeed479d82d863c694e113b2cf"
+  },
+  {
+    "name": "ct-22-2022_2022-11-15",
+    "filename": "ct-22-2022_2022-11-15.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:49.417684+00:00",
+    "sha256": "898a819050c9b4c7757fb867f4a35b745274f0d5eb3fc0a3c584a5c15af495a0"
+  },
+  {
+    "name": "ct-23-2021_2021-06-01",
+    "filename": "ct-23-2021_2021-06-01.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:35:59.975773+00:00",
+    "sha256": "ad816c92038b044784597c09b92190a7b39974fd8471ae2e0655a06e3983d4e5"
+  },
+  {
+    "name": "ct-24-2022_2022-11-23",
+    "filename": "ct-24-2022_2022-11-23.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:50.238353+00:00",
+    "sha256": "02774a3f6347c8eee78394adc488e0448902d678adecdd8106dfbb597f3dad8d"
+  },
+  {
+    "name": "ct-24-2024_2024-10-09",
+    "filename": "ct-24-2024_2024-10-09.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:26.244394+00:00",
+    "sha256": "115c11a0c578a232ea9ffb58ef4777f825a2ccecac3f9fe9fdac4585c6ddb22a"
+  },
+  {
+    "name": "ct-25-2024_2024-10-09",
+    "filename": "ct-25-2024_2024-10-09.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:27.131598+00:00",
+    "sha256": "db4d3a24d726cfc5cf2da0ae10ba3446ddb7bde7ca5bb0d7239d3b0a14ed726d"
+  },
+  {
+    "name": "ct-26-2022_2022-12-26",
+    "filename": "ct-26-2022_2022-12-26.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:51.122640+00:00",
+    "sha256": "c8306fb2e0fbeca3c582784b0776e8ac09abf69170c6466fcd0ba089779c4413"
+  },
+  {
+    "name": "ct-27-2021_2021-06-01",
+    "filename": "ct-27-2021_2021-06-01.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:36:00.939482+00:00",
+    "sha256": "04eca55b63bfec1b78f3480a0afdccd23a8fd192d2dd2cbcca35faa2f1793e4e"
+  },
+  {
+    "name": "ct-27-2023_2023-07-31",
+    "filename": "ct-27-2023_2023-07-31.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:29.498040+00:00",
+    "sha256": "73663c4708c950b75fe9233a19b973edbd7a0b09c046be496cd64eda73206a2d"
+  },
+  {
+    "name": "ct-28-2023_2023-07-31",
+    "filename": "ct-28-2023_2023-07-31.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:30.313347+00:00",
+    "sha256": "f2ab4a0c2fac72d5b6003c66c8e3d21591eb7e7fd6b43c1c1a3af6eee09f7a62"
+  },
+  {
+    "name": "ct-29-2021_2021-07-30",
+    "filename": "ct-29-2021_2021-07-30.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:56.358951+00:00",
+    "sha256": "ac932ffd571890bd26604384e3ff1e9652352972f3542bcd725ab5e3ddbd93dc"
+  },
+  {
+    "name": "ct-30-2021_2021-07-30",
+    "filename": "ct-30-2021_2021-07-30.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:34:32.169524+00:00",
+    "sha256": "d8558679c9de28ef872802653cdce5ddbe78dd8e3ea0ebdf8981f86d541b3ab7"
+  },
+  {
+    "name": "ct-31-2021_2021-07-30",
+    "filename": "ct-31-2021_2021-07-30.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:57.445555+00:00",
+    "sha256": "045f376dd9930a7cfa3ab2d0918bb5c0523671a39d765919a67b32fb2c0b053c"
+  },
+  {
+    "name": "ct-32-2021_2021-08-29",
+    "filename": "ct-32-2021_2021-08-29.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:29:58.475101+00:00",
+    "sha256": "e2ae1bf8920ed29e19692993e4118f781070435416ae5f7968cf2c8fb203eb98"
+  },
+  {
+    "name": "ct-35-2021_2021-09-24",
+    "filename": "ct-35-2021_2021-09-24.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:31:00.357697+00:00",
+    "sha256": "0c71eaa187f3cc47c450f414f03e552aaf45c293e028d1c3dd823af6f2fdfd62"
+  },
+  {
+    "name": "ct-36-2021_2021-09-24",
+    "filename": "ct-36-2021_2021-09-24.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:31:00.936875+00:00",
+    "sha256": "2e22a6af0dc73bc682fe671a65b2675e6f76d953c2ca9b7e08abebff3aef8fed"
+  },
+  {
+    "name": "ct-37-2021_2021-12-01",
+    "filename": "ct-37-2021_2021-12-01.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:31:01.674196+00:00",
+    "sha256": "6c34fba261ab3e71890680b9c918e1c5f2a2af6c22f127f4299bad2bc56eba93"
+  },
+  {
+    "name": "ct-38-2023_2023-08-04",
+    "filename": "ct-38-2023_2023-08-04.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:24:31.856597+00:00",
+    "sha256": "1416a961b1cad9ee868dca25d8e4bbf6cddb4a8df8cbe21b3fa44ec10e8433aa"
+  },
+  {
+    "name": "ct-40-2021_2021-12-29",
+    "filename": "ct-40-2021_2021-12-29.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:31:02.799864+00:00",
+    "sha256": "2b9e3da51383076859f81e057c67030a46ece069bf5545624a5033443ce2dbb1"
+  },
+  {
+    "name": "ct-45-2023_2023-09-06",
+    "filename": "ct-45-2023_2023-09-06.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:28:08.279221+00:00",
+    "sha256": "66a18610c772fcb2063b5f52fce566ec38025269600d29574fe5ed04d838c148"
+  },
+  {
+    "name": "ct-47-2023_2023-09-25",
+    "filename": "ct-47-2023_2023-09-25.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:28:09.177527+00:00",
+    "sha256": "f88e9547ab8e0a6540dffbdc7e83ff698422ee3d4392da2b538a3be463af3515"
+  },
+  {
+    "name": "ct-48-2023_2023-09-29",
+    "filename": "ct-48-2023_2023-09-29.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:22:56.837190+00:00",
+    "sha256": "2e8fabda1c4b068aa6d4c43d0c33fb31955557e2b650c1293d3df4901549899d"
+  },
+  {
+    "name": "ct-50-2023_2023-09-29",
+    "filename": "ct-50-2023_2023-09-29.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:22:57.370288+00:00",
+    "sha256": "0ba655c9be37c60f4cf77a524328ea4841e5c46777a8e305474950a2d708caf7"
+  },
+  {
+    "name": "ct-51-2023_2023-09-29",
+    "filename": "ct-51-2023_2023-09-29.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:22:58.182322+00:00",
+    "sha256": "72ac86ee9fdad24b49427a42e4a27a039546d9dc497678d454866a9d2efbcabd"
+  },
+  {
+    "name": "ct-52-2023_2023-10-26",
+    "filename": "ct-52-2023_2023-10-26.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:22:58.864798+00:00",
+    "sha256": "6c535b5153ca6c46ef3174c61b62889f11984b977ea04fb0f9a470cded3aee9c"
+  },
+  {
+    "name": "ct-54-2023_2023-11-17",
+    "filename": "ct-54-2023_2023-11-17.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:28:10.393123+00:00",
+    "sha256": "b024ce7a8a0f0fc94ebb0e281338f3354620060b54af3b928384913870df45cb"
+  },
+  {
+    "name": "igst-act_cbic-taxinfo_2020-03-27",
+    "filename": "igst-act_cbic-taxinfo_2020-03-27.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-08T09:05:54.676550+00:00",
+    "sha256": "9270763c05aae6e11d3c7c35f91a8e926473d05d4a3279488dabe484f34736a5"
+  },
+  {
+    "name": "ct-38-2021_2021-12-21",
+    "filename": "ct-38-2021_2021-12-21.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-10T21:00:52.454638+00:00",
+    "sha256": "7a8c888702983b7a2fc8365a4bd6c889a4c43a605918b832adc71589c70930ae"
+  },
+  {
+    "name": "order-02-2018-ct_2018-12-31",
+    "filename": "order-02-2018-ct_2018-12-31.pdf",
+    "url": null,
+    "source": "manual",
+    "downloaded_at": "2026-10-11T06:45:00.915613+00:00",
+    "sha256": "1ff27caaf1293da6578e4184e1df429f52ac53e5022b82bf20d42db887ad9f7f"
+  }
+]

@@ -1,0 +1,97 @@
+version: 1
+source_act_pdf: data/raw/cgst-act_cbic-taxinfo_2022-09-28.pdf
+source_rules_pdf: data/raw/cgst-rules-part-a_2021-05-18.pdf
+rules:
+  - rule: "36"
+    paths:
+      - CGST/r36
+      - CGST/r36/ss2
+      - CGST/r36/ss3
+      - CGST/r36/ss4
+  - rule: "42"
+    paths:
+      - CGST/r42
+  - rule: "43"
+    paths:
+      - CGST/r43
+  - rule: "86B"
+    paths:
+      - CGST/r86B
+  - rule: "89"
+    paths:
+      - CGST/r89
+act_provisions:
+  # Section-level entries name the requested provision; `paths` are the versioned nodes built
+  # from the footnotes of source_act_pdf. Only footnoted (amended) nodes are versioned here.
+  - section: "9(3)"
+    citation: CGST Act section 9(3)
+    paths:
+      - CGST/s9/ss3
+  - section: "9(4)"
+    citation: CGST Act section 9(4)
+    paths:
+      - CGST/s9/ss4
+  - section: "16"
+    citation: CGST Act section 16
+    paths:
+      - CGST/s16/ss2/cl(aa)
+      - CGST/s16/ss2/cl(b)/explanation1
+      - CGST/s16/ss2/cl(ba)
+      - CGST/s16/ss4
+      - CGST/s16/ss4/proviso1
+  - section: "17(5)"
+    citation: CGST Act section 17(5)
+    paths:
+      - CGST/s17/ss5/cl(a)
+      - CGST/s17/ss5/cl(aa)
+      - CGST/s17/ss5/cl(ab)
+      - CGST/s17/ss5/cl(b)
+manual_rule_edits:
+  - path: CGST/r42
+    notification: 19/2022-Central Tax
+    effective_from: "2022-10-01"
+    operation: omit words
+    target: "at the invoice level in FORM GSTR-2 and"
+  - path: CGST/r43
+    notification: 19/2022-Central Tax
+    effective_from: "2022-10-01"
+    operation: omit words at both occurrences
+    target: "FORM GSTR-2 and"
+  - path: CGST/r43
+    notification: 38/2023-Central Tax
+    effective_from: "2023-08-04"
+    operation: omit clause (c) from Explanation 1
+  - path: CGST/r43
+    notification: 38/2023-Central Tax
+    effective_from: "2023-10-01"
+    operation: insert Explanation 3 after Explanation 2
+  - path: CGST/r89
+    notification: 35/2021-Central Tax
+    effective_from: "2021-09-24"
+    operation: >-
+      apply sub-rule (1A) insertion (para 2(6)(ii)); defer the rule 10B words in sub-rule (1)
+      (para 2(6)(i)), which apply only from a date yet to be notified
+  - path: CGST/r89
+    notification: 14/2022-Central Tax
+    effective_from: "2022-07-05"
+    operation: manually apply sub-rules (1), (2), (4), (5), (6) and (7)
+  - path: CGST/r89
+    notification: 19/2022-Central Tax
+    effective_from: "2022-10-01"
+    operation: manually apply sub-rule (1) instructions (a)-(d)
+  - path: CGST/r89
+    notification: 26/2022-Central Tax
+    effective_from: "2022-12-26"
+    operation: manually apply sub-rule (2) instructions (i)-(ii)
+  - path: CGST/r89
+    notification: 38/2023-Central Tax
+    effective_from: "2023-08-04"
+    operation: manually apply sub-rules (1)-(2) instructions (a)-(b)
+  - path: CGST/r89
+    notification: 12/2024-Central Tax
+    effective_from: "2024-07-10"
+    operation: manually apply instructions (i)-(ii)
+  - path: CGST/r89
+    notification: 20/2024-Central Tax
+    effective_from: "2024-10-08"
+    operation: manually apply sub-rule (4) omissions and substitution

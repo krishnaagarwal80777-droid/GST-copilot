@@ -1,0 +1,30 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Secrets and machine-specific settings
+.env
+local.mk
+
+# Editor
+.vscode/
+
+# Model weights and caches (kept outside the repo on this machine, ignored if placed inside)
+hf-cache/
+data/cache/
+data/index/
+
+# Sources and derived data are rebuilt from data/raw/manifest.json and the make targets
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/manifest.json
+data/processed/*
+!data/processed/.gitkeep
+
+# Eval caches (results CSVs and eval/questions.jsonl stay tracked)
+eval/.cache/
+eval/results/*.tmp

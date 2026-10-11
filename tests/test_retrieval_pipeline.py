@@ -1,0 +1,154 @@
+from __future__ import annotations
+
+import hashlib
+from datetime import date
+
+import numpy as np
+import pytest
+
+from retrieval.config import CONFIGS, RetrievalConfig
+from retrieval.exact_match import exact_paths, parse_citations
+from retrieval.fusion import rrf
+
+pytest.importorskip("lancedb")
+pytest.importorskip("bm25s")
+
+from retrieval.pipeline import PROVISIONS_TABLE, Retriever  # noqa: E402
+from retrieval.store import DEFAULT_PG_DSN, OPEN_END, LanceStore, PgVectorStore  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("Is credit blocked under 17(5)?", ["CGST/s17/ss5"]),
+        ("What is the limit in s.16(4)?", ["CGST/s16/ss4"]),
+        ("section 17(5)(a) of the CGST Act", ["CGST/s17/ss5/cl(a)"]),
+        ("What does rule 36(4) say?", ["CGST/r36/ss4"]),
+        ("rate under Notification 9/2025-CT(Rate)", ["CTR/9-2025"]),
+        ("Notification No. 1/2017-Central Tax (Rate)", ["CTR/1-2017"]),
+        ("condition in section 16(2)(aa)", ["CGST/s16/ss2/cl(aa)"]),
+        ("invoices of financial year 2017-18 and a bus of 20 seats", []),
+    ],
+)
+def test_citations_normalise_to_canonical_paths(query, expected) -> None:
+    assert parse_citations(query) == expected
+
+
+def test_exact_paths_prefers_the_cited_node_then_children_then_ancestor() -> None:
+    indexed = ["CGST/s16/ss4", "CGST/s16/ss4/proviso1", "CGST/r89"]
+    assert exact_paths("CGST/s16/ss4", indexed) == ["CGST/s16/ss4", "CGST/s16/ss4/proviso1"]
+    assert exact_paths("CGST/r89/ss1", indexed) == ["CGST/r89"]
+    assert exact_paths("CGST/s77", indexed) == []
+
+
+def test_rrf_rewards_agreement() -> None:
+    # Equal fused scores tie-break by id; an item in both lists beats one in a single list.
+    assert rrf([["a", "b", "c"], ["b", "a", "d"]])[:2] == ["a", "b"]
+    assert rrf([["x", "y"], ["y", "z"]])[0] == "y"
+
+
+def test_ablation_ladder_is_cumulative() -> None:
+    names = [config.name for config in CONFIGS]
+    assert names == ["naive", "dense", "bm25", "dense+bm25", "+exact_match", "+date_filter"]
+    full = CONFIGS[-1]
+    assert (full.dense, full.bm25, full.exact_match, full.date_filter) == (True, True, True, True)
+
+
+class HashEmbedder:
+    """Deterministic bag-of-words vectors: no model download in tests."""
+
+    def encode(self, texts):
+        vectors = np.zeros((len(texts), 64), dtype=np.float32)
+        for row, text in enumerate(texts):
+            for word in text.lower().split():
+                vectors[row, int(hashlib.md5(word.encode()).hexdigest(), 16) % 64] += 1.0
+        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+        return vectors / np.where(norms == 0, 1, norms)
+
+
+def _row(record_id: str, start: str, end: str | None, text: str) -> dict:
+    path = record_id.split("@")[0]
+    return {
+        "id": record_id,
+        "record_id": record_id,
+        "path": path,
+        "act_id": "TEST",
+        "doc_type": "act",
+        "node_type": "clause",
+        "effective_from": start,
+        "effective_to": end or OPEN_END,
+        "in_force_since": start,
+        "text": text,
+    }
+
+
+class _TableNamed:
+    """Wraps a store so tests write to a throwaway table instead of the real index."""
+
+    def __init__(self, store, table):
+        self.store, self.table, self.backend = store, table, store.backend
+
+    def write(self, table, rows, vectors):
+        self.store.write(self.table, rows, vectors)
+
+    def search(self, table, vector, k, **kwargs):
+        return self.store.search(self.table, vector, k, **kwargs)
+
+    def rows(self, table):
+        return self.store.rows(self.table)
+
+
+def _pg_store():
+    try:
+        return PgVectorStore(DEFAULT_PG_DSN)
+    except Exception:
+        pytest.skip("Postgres with pgvector not reachable (docker compose up -d)")
+
+
+@pytest.fixture(params=["lancedb", "pgvector"])
+def retriever(request, tmp_path):
+    # Synthetic rows exercising the mechanics only (not legal text).
+    rows = [
+        _row("T/s1/ss1@v1", "2018-01-01", "2019-12-31", "alpha beta gamma old wording"),
+        _row("T/s1/ss1@v2", "2020-01-01", None, "alpha beta gamma new wording"),
+        _row("T/s2@v1", "2018-01-01", None, "delta epsilon unrelated text"),
+        _row("CGST/s99/ss2@v1", "2018-01-01", None, "zeta eta theta"),
+    ]
+    if request.param == "lancedb":
+        store = LanceStore(tmp_path / "lance")
+    else:
+        store = _TableNamed(_pg_store(), f"test_{tmp_path.name}".lower().replace("-", "_"))
+    embedder = HashEmbedder()
+    store.write(PROVISIONS_TABLE, rows, embedder.encode([row["text"] for row in rows]))
+    yield Retriever(store, embedder)
+    if request.param == "pgvector":
+        store.store.conn.execute(f'DROP TABLE IF EXISTS "{store.table}"')
+
+
+def test_date_filter_keeps_only_the_version_valid_on_the_reference_date(retriever) -> None:
+    config = RetrievalConfig("t", dense=True, bm25=True, date_filter=True)
+    early = retriever.search("alpha beta gamma wording", config, on=date(2019, 6, 1))
+    late = retriever.search("alpha beta gamma wording", config, on=date(2021, 6, 1))
+    assert "T/s1/ss1@v1" in early and "T/s1/ss1@v2" not in early
+    assert "T/s1/ss1@v2" in late and "T/s1/ss1@v1" not in late
+
+
+def test_without_date_filter_both_versions_compete(retriever) -> None:
+    config = RetrievalConfig("t", dense=True, bm25=True)
+    ranked = retriever.search("alpha beta gamma wording", config, on=date(2019, 6, 1))
+    assert {"T/s1/ss1@v1", "T/s1/ss1@v2"} <= set(ranked)
+
+
+def test_bm25_alone_and_dense_alone_both_rank(retriever) -> None:
+    for config in (RetrievalConfig("b", dense=False, bm25=True), RetrievalConfig("d")):
+        assert retriever.search("delta epsilon", config, on=date(2021, 1, 1))[0] == "T/s2@v1"
+
+
+def test_exact_match_pins_the_cited_provision_first(retriever) -> None:
+    query = "what does section 99(2) provide about alpha beta gamma"
+    plain = retriever.search(query, RetrievalConfig("t", bm25=True), on=date(2021, 1, 1))
+    pinned = retriever.search(
+        query, RetrievalConfig("t", bm25=True, exact_match=True), on=date(2021, 1, 1)
+    )
+    assert plain[0] != "CGST/s99/ss2@v1"
+    assert pinned[0] == "CGST/s99/ss2@v1"
