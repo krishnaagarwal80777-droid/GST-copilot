@@ -266,3 +266,23 @@ def test_threshold_choice_maximises_f1_then_fewest_false_abstentions() -> None:
     threshold, candidates = choose(confidences)
     best = next(c for c in candidates if c["threshold"] == threshold)
     assert threshold == 0.55 and (best["tp"], best["fp"], best["fn"]) == (2, 1, 0)
+
+
+def test_abstention_f1_is_na_without_unanswerable_items() -> None:
+    answerable = item(True, ["A"])
+    records = [record(answerable, True, [], None), record(answerable, False, ["A"], "correct")]
+    (overall,) = [r for r in summarize(records, {}) if r["category"] == "overall"][:1]
+    assert overall["abstain_fp"] == 1
+    assert overall["abstain_f1"] == "n/a" and overall["abstain_recall"] == "n/a"
+
+
+def test_bootstrap_intervals_are_seeded_and_bracket_the_estimate() -> None:
+    good, refused = item(True, ["A"]), item(False, [])
+    records = [record(good, False, ["A"], "correct")] * 6 + [record(good, True, [], None)] * 4
+    records += [record(refused, True, [], None)] * 2
+    first = summarize(records, {})[0]
+    again = summarize(records, {})[0]
+    assert first == again
+    assert first["correct_rate_ci_low"] <= first["correct_rate"] <= first["correct_rate_ci_high"]
+    low, high = first["citation_recall_ci_low"], first["citation_recall_ci_high"]
+    assert low <= first["citation_recall"] == 0.6 <= high

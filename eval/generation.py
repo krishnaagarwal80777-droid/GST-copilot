@@ -5,8 +5,10 @@ reported as counts and rates, per source (all / hand / templated) and category:
 
 - Citations (paths of the chunks cited by verified claims, compared with gold_paths):
   precision = correct cited paths / cited paths, over every answered item (micro);
-  recall = gold paths cited / gold paths, over every answerable item (an abstention cites none).
-- Abstention (positive class = abstain; gold = not answerable): TP, FP, FN, TN, P, R, F1.
+  recall = gold paths cited / gold paths, over answerable items only (an abstention on an
+  answerable item cites none; unanswerable items have no gold paths and are left out).
+- Abstention (positive class = abstain; gold = not answerable): TP, FP, FN, TN, P, R, F1. In a
+  slice with no unanswerable items, recall and F1 are undefined and reported as "n/a".
 - Correctness: answerable items that were answered are graded by the Groq judge against the
   gold answer (correct / partially_correct / incorrect). "correct" overall counts judge-correct
   answerable items plus unanswerable items that abstained; answerable items that abstained and
@@ -16,13 +18,20 @@ Generator and judge calls are cached on disk (generation.llm), so re-runs are fr
 results go to eval/results/generation_<split>_items.jsonl and summary rows are appended to
 eval/results/generation.csv. The test split is run once: a second test run needs --rerun-test.
 
+Correct rate and citation recall carry 95% percentile bootstrap intervals (BOOTSTRAP_RESAMPLES
+resamples of the slice's items, fixed seed).
+
 ``--dry-run`` makes no LLM calls: it builds every context and prompt and counts input tokens.
+``--from-items`` recomputes the summary rows from the per-item jsonl (no generator calls);
+with ``--rejudge`` the judge is re-run on the stored answers (judge calls only, cached).
+Recomputed rows are appended with a ``note``; earlier rows are never rewritten.
 """
 
 from __future__ import annotations
 
 import csv
 import json
+import random
 from collections import defaultdict
 from dataclasses import asdict, replace
 from datetime import UTC, date, datetime
@@ -40,6 +49,9 @@ RESULTS_DIR = ROOT / "eval" / "results"
 SUMMARY_FILE = RESULTS_DIR / "generation.csv"
 JUDGE_REFERENCE_CAP = 6000  # characters of gold text shown to the judge
 VERDICTS = ("correct", "partially_correct", "incorrect")
+BOOTSTRAP_RESAMPLES = 1000
+BOOTSTRAP_SEED = 20261011
+NA = "n/a"
 FIELDS = (
     "timestamp",
     "git_hash",
@@ -75,6 +87,11 @@ FIELDS = (
     "judge_error",
     "correct",
     "correct_rate",
+    "correct_rate_ci_low",
+    "correct_rate_ci_high",
+    "citation_recall_ci_low",
+    "citation_recall_ci_high",
+    "note",
 )
 
 
@@ -113,7 +130,7 @@ def judge(client, item: EvalItem, rendered: str) -> dict[str, Any]:
 
 def score_item(item: EvalItem, result: dict[str, Any]) -> dict[str, Any]:
     cited = result["cited_paths"] if not result["abstained"] else []
-    gold = set(item.gold_paths)
+    gold = set(item.gold_paths) if item.answerable else set()
     verdict = (result.get("judge") or {}).get("verdict")
     if item.answerable:
         correct = (not result["abstained"]) and verdict == "correct"
@@ -132,6 +149,33 @@ def _rate(numerator: int, denominator: int) -> float | str:
     return round(numerator / denominator, 4) if denominator else ""
 
 
+def bootstrap_ci(records: list[dict[str, Any]], statistic, *, seed: int = BOOTSTRAP_SEED):
+    """95% percentile interval of ``statistic(resample)`` over item resamples."""
+    if not records:
+        return "", ""
+    rng = random.Random(seed)
+    values = []
+    for _ in range(BOOTSTRAP_RESAMPLES):
+        value = statistic([records[rng.randrange(len(records))] for _ in records])
+        if value is not None:
+            values.append(value)
+    if not values:
+        return "", ""
+    values.sort()
+    low = values[int(0.025 * (len(values) - 1))]
+    high = values[int(0.975 * (len(values) - 1))]
+    return round(low, 4), round(high, 4)
+
+
+def _correct_rate(sample: list[dict[str, Any]]) -> float:
+    return sum(1 for r in sample if r["score"]["correct"]) / len(sample)
+
+
+def _citation_recall(sample: list[dict[str, Any]]) -> float | None:
+    gold = sum(r["score"]["gold"] for r in sample)
+    return sum(r["score"]["gold_cited"] for r in sample) / gold if gold else None
+
+
 def summarize(records: list[dict[str, Any]], meta: dict[str, Any]) -> list[dict[str, Any]]:
     groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for record in records:
@@ -147,8 +191,10 @@ def summarize(records: list[dict[str, Any]], meta: dict[str, Any]) -> list[dict[
         fp = sum(1 for r in members if r["abstained"] and r["answerable"])
         fn = sum(1 for r in members if not r["abstained"] and not r["answerable"])
         tn = sum(1 for r in members if not r["abstained"] and r["answerable"])
-        precision, recall = _rate(tp, tp + fp), _rate(tp, tp + fn)
-        f1 = _rate(2 * tp, 2 * tp + fp + fn)  # F1 = 2TP / (2TP + FP + FN)
+        has_negatives = any(not r["answerable"] for r in members)
+        precision = _rate(tp, tp + fp)
+        recall = _rate(tp, tp + fn) if has_negatives else NA
+        f1 = _rate(2 * tp, 2 * tp + fp + fn) if has_negatives else NA  # 2TP / (2TP + FP + FN)
         verdicts = [(r.get("judge") or {}).get("verdict") for r in answered if r["answerable"]]
         cited = sum(r["score"]["cited"] for r in answered)
         cited_correct = sum(r["score"]["cited_correct"] for r in answered)
@@ -156,6 +202,8 @@ def summarize(records: list[dict[str, Any]], meta: dict[str, Any]) -> list[dict[
         gold = sum(r["score"]["gold"] for r in answerable)
         gold_cited = sum(r["score"]["gold_cited"] for r in answerable)
         correct = sum(1 for r in members if r["score"]["correct"])
+        correct_ci = bootstrap_ci(members, _correct_rate)
+        recall_ci = bootstrap_ci(answerable, _citation_recall)
         rows.append(
             {
                 **meta,
@@ -186,6 +234,11 @@ def summarize(records: list[dict[str, Any]], meta: dict[str, Any]) -> list[dict[
                 "judge_error": verdicts.count("judge_error"),
                 "correct": correct,
                 "correct_rate": _rate(correct, len(members)),
+                "correct_rate_ci_low": correct_ci[0],
+                "correct_rate_ci_high": correct_ci[1],
+                "citation_recall_ci_low": recall_ci[0],
+                "citation_recall_ci_high": recall_ci[1],
+                "note": "",
             }
         )
     return rows
@@ -193,12 +246,34 @@ def summarize(records: list[dict[str, Any]], meta: dict[str, Any]) -> list[dict[
 
 def write_summary(rows: list[dict[str, Any]], path: Path = SUMMARY_FILE) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    _upgrade_header(path)
     new_file = not path.exists()
     with path.open("a", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=FIELDS)
         if new_file:
             writer.writeheader()
         writer.writerows(rows)
+
+
+def _upgrade_header(path: Path) -> None:
+    """Add columns introduced after the file was written. Existing rows keep their values;
+    the new columns are empty on them."""
+    if not path.exists():
+        return
+    with path.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if tuple(reader.fieldnames or ()) == FIELDS:
+            return
+        old = list(reader)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=FIELDS)
+        writer.writeheader()
+        writer.writerows(old)
+
+
+def _ci(row: dict[str, Any], name: str) -> str:
+    low, high = row[f"{name}_ci_low"], row[f"{name}_ci_high"]
+    return f"[{low:.3f}, {high:.3f}]" if low != "" else ""
 
 
 def print_summary(rows: list[dict[str, Any]]) -> None:
@@ -221,6 +296,14 @@ def print_summary(rows: list[dict[str, Any]]) -> None:
             f"{r['abstained']:>4} {cp:>15} {cr:>15} {ab:>13} {str(r['abstain_f1']):>6} "
             f"{jd:>13} {r['correct']:>4}/{r['n']:<3} ({r['correct_rate']})"
         )
+    print("\n95% bootstrap CIs, overall rows:")
+    for r in rows:
+        if r["category"] == "overall":
+            print(
+                f"  {r['source']:9} n={r['n']:<3} correct {r['correct_rate']} "
+                f"{_ci(r, 'correct_rate')}  citation recall {r['citation_recall']} "
+                f"{_ci(r, 'citation_recall')} over {r['answerable']} answerable items"
+            )
 
 
 def run(
@@ -329,6 +412,52 @@ def run(
     print_summary(rows)
 
 
+def from_items(split: str, *, rejudge: bool = False) -> None:
+    """Recompute (and optionally re-judge) a split from its per-item jsonl; append rows."""
+    from eval.harness import load_eval_items
+    from generation.llm import judge_client
+
+    items_file = RESULTS_DIR / f"generation_{split}_items.jsonl"
+    lines = items_file.read_text(encoding="utf-8").splitlines()
+    header, records = json.loads(lines[0]), [json.loads(line) for line in lines[1:]]
+    items = {item_key(item): item for item in load_eval_items()}
+    changed = 0
+    if rejudge:
+        judge_llm = judge_client()
+        for record in records:
+            if record["answerable"] and not record["abstained"]:
+                verdict = judge(judge_llm, items[record["key"]], record["rendered"])
+                old = (record.get("judge") or {}).get("verdict")
+                changed += verdict["verdict"] != old
+                record["judge"] = verdict
+    for record in records:
+        record["score"] = score_item(items[record["key"]], record)
+    original = header["meta"]
+    judges = {
+        r["judge"].get("model") for r in records if r.get("judge") and r["judge"].get("model")
+    }
+    meta = {
+        **original,
+        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+        "git_hash": git_hash(),
+        "judge_model": "/".join(sorted(judges)),
+    }
+    rows = summarize(records, meta)
+    action = "re-judged" if rejudge else "recomputed"
+    note = f"{action} from {items_file.name} (run {original['timestamp']}, {original['git_hash']})"
+    for row in rows:
+        row["note"] = note
+    if rejudge:
+        with items_file.open("w", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(header) + "\n")
+            for record in records:
+                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        print(f"re-judged {split}: {changed} verdicts changed")
+    write_summary(rows)
+    print(f"{note}; appended {len(rows)} rows to {SUMMARY_FILE.relative_to(ROOT)}")
+    print_summary(rows)
+
+
 def main() -> None:
     import argparse
 
@@ -342,7 +471,14 @@ def main() -> None:
         "--no-verify", action="store_true", help="ablation: keep claims without valid citations"
     )
     parser.add_argument("--rerun-test", action="store_true")
+    parser.add_argument(
+        "--from-items", action="store_true", help="recompute rows from the per-item jsonl"
+    )
+    parser.add_argument("--rejudge", action="store_true", help="with --from-items: re-run judge")
     args = parser.parse_args()
+    if args.from_items:
+        from_items(args.split, rejudge=args.rejudge)
+        return
     config = GenerationConfig()
     if args.no_gate:
         config = replace(config, name=config.name + "-gate", gate=False)
