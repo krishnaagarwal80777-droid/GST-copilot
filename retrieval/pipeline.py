@@ -16,7 +16,7 @@ from retrieval.config import RetrievalConfig
 from retrieval.corpus import build_rows
 from retrieval.embed import Embedder
 from retrieval.exact_match import exact_paths, parse_citations
-from retrieval.fusion import rrf
+from retrieval.fusion import dense_first, weighted_rrf
 from retrieval.naive import naive_rows
 from retrieval.store import VectorStore, row_dict
 
@@ -46,9 +46,10 @@ def _dedupe(record_ids: list[str]) -> list[str]:
 
 
 class Retriever:
-    def __init__(self, store: VectorStore, embedder: Embedder) -> None:
+    def __init__(self, store: VectorStore, embedder: Embedder, reranker=None) -> None:
         self.store = store
         self.embedder = embedder
+        self.reranker = reranker
         self._tables: dict[str, tuple[list[dict[str, Any]], Bm25Index | None]] = {}
 
     def _table(self, name: str, with_bm25: bool) -> tuple[list[dict[str, Any]], Bm25Index | None]:
@@ -75,27 +76,66 @@ class Retriever:
         filter_on = on if config.date_filter else None
         mask = [_valid(row, on, known_by) for row in rows] if config.date_filter else None
 
-        rankings: list[list[str]] = []
+        dense_ids: list[str] = []
+        similarity: dict[str, float] = {}
         if config.dense:
             vector = self.embedder.encode([query])[0]
             hits = self.store.search(
                 table, vector, config.candidates, on=filter_on, known_by=known_by
             )
-            rankings.append(_dedupe([hit["record_id"] for hit in hits]))
+            for hit in hits:
+                if hit["record_id"] not in similarity:
+                    similarity[hit["record_id"]] = 1.0 - float(hit["_distance"])
+                    dense_ids.append(hit["record_id"])
+        bm25_ids: list[str] = []
         if config.bm25 and bm25 is not None:
             order = bm25.rank(query, mask=mask, k=config.candidates)
-            rankings.append(_dedupe([rows[index]["record_id"] for index in order]))
-        fused = rankings[0] if len(rankings) == 1 else rrf(rankings, k=config.rrf_k)
+            bm25_ids = _dedupe([rows[index]["record_id"] for index in order])
+
+        if config.dense and config.bm25:
+            if config.fusion == "dense_first":
+                fused = dense_first(dense_ids, similarity, bm25_ids, tie_eps=config.tie_eps)
+            else:
+                fused = weighted_rrf(
+                    [dense_ids, bm25_ids], [config.w_dense, config.w_bm25], k=config.rrf_k
+                )
+        else:
+            fused = dense_ids or bm25_ids
+
+        if config.rerank and self.reranker is not None:
+            head = self._rerank(query, fused[: config.rerank_top], rows, mask)
+            fused = head + fused[config.rerank_top :]
 
         if config.exact_match and config.index == "structured":
             pinned = self._exact(query, rows, mask)
             fused = pinned + [record_id for record_id in fused if record_id not in pinned]
         return fused[:k]
 
+    def _rerank(
+        self, query: str, record_ids: list[str], rows: list[dict[str, Any]], mask
+    ) -> list[str]:
+        """Cross-encoder order; a chunked record scores as its best chunk."""
+        texts: list[str] = []
+        owners: list[str] = []
+        wanted = set(record_ids)
+        for index, row in enumerate(rows):
+            if row["record_id"] in wanted and (mask is None or mask[index]):
+                texts.append(row["text"])
+                owners.append(row["record_id"])
+        best: dict[str, float] = {}
+        for owner, score in zip(owners, self.reranker.scores(query, texts), strict=True):
+            best[owner] = max(score, best.get(owner, float("-inf")))
+        return sorted(record_ids, key=lambda rid: -best.get(rid, float("-inf")))
+
     @staticmethod
     def _exact(query: str, rows: list[dict[str, Any]], mask: list[bool] | None) -> list[str]:
         """Rows for every cited provision, citation order, newest version first per path."""
-        candidates = [row for index, row in enumerate(rows) if mask is None or mask[index]]
+        # Exact-match hits are citations, so only servable rows can be pinned.
+        candidates = [
+            row
+            for index, row in enumerate(rows)
+            if (mask is None or mask[index]) and row.get("servable", "1") == "1"
+        ]
         indexed_paths = sorted({row["path"] for row in candidates})
         wants_proviso = "proviso" in query.lower()
         pinned: list[str] = []

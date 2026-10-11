@@ -35,6 +35,7 @@ COLUMNS = (
     "effective_to",
     "in_force_since",
     "text",
+    "servable",
 )
 
 
@@ -43,6 +44,7 @@ def row_dict(row: IndexRow) -> dict[str, Any]:
     for key in ("effective_from", "in_force_since"):
         data[key] = data[key].isoformat()
     data["effective_to"] = row.effective_to.isoformat() if row.effective_to else OPEN_END
+    data["servable"] = "1" if row.servable else "0"
     return data
 
 

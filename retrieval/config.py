@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 
@@ -14,16 +14,48 @@ class RetrievalConfig:
     bm25: bool = False
     exact_match: bool = False
     date_filter: bool = False
+    # Fusion of dense and BM25 rankings (used when both are on).
+    #   rrf:         score = w_dense / (rrf_k + rank_dense) + w_bm25 / (rrf_k + rank_bm25)
+    #   dense_first: dense order; BM25 rank only reorders dense hits whose cosine similarity is
+    #                within tie_eps of each other; BM25-only hits follow all dense hits.
+    fusion: Literal["rrf", "dense_first"] = "rrf"
     rrf_k: int = 60
+    w_dense: float = 1.0
+    w_bm25: float = 1.0
+    tie_eps: float = 0.0
+    rerank: bool = False
+    rerank_top: int = 20
     candidates: int = 50
 
 
-# Cumulative ablation ladder reported by `make eval-retrieval`.
-CONFIGS: tuple[RetrievalConfig, ...] = (
-    RetrievalConfig("naive", index="naive"),
-    RetrievalConfig("dense"),
-    RetrievalConfig("bm25", dense=False, bm25=True),
-    RetrievalConfig("dense+bm25", bm25=True),
-    RetrievalConfig("+exact_match", bm25=True, exact_match=True),
-    RetrievalConfig("+date_filter", bm25=True, exact_match=True, date_filter=True),
-)
+# Fusion chosen on the dev split by eval/tune_fusion.py (eval/results/fusion_tuning_dev.csv).
+# Plain RRF (k=60, equal weights) is the untuned default it is compared against.
+TUNED_FUSION: dict = {"fusion": "rrf", "rrf_k": 60, "w_dense": 1.0, "w_bm25": 1.0, "tie_eps": 0.0}
+
+
+def with_fusion(config: RetrievalConfig, fusion: dict) -> RetrievalConfig:
+    return replace(config, **fusion)
+
+
+def ablation_configs(fusion: dict | None = None) -> tuple[RetrievalConfig, ...]:
+    """Cumulative ablation ladder reported by `make eval-retrieval`."""
+    fused = TUNED_FUSION if fusion is None else fusion
+    return (
+        RetrievalConfig("naive", index="naive"),
+        RetrievalConfig("dense"),
+        RetrievalConfig("bm25", dense=False, bm25=True),
+        with_fusion(RetrievalConfig("dense+bm25", bm25=True), fused),
+        with_fusion(RetrievalConfig("+exact_match", bm25=True, exact_match=True), fused),
+        with_fusion(
+            RetrievalConfig("+date_filter", bm25=True, exact_match=True, date_filter=True), fused
+        ),
+        with_fusion(
+            RetrievalConfig(
+                "+reranker", bm25=True, exact_match=True, date_filter=True, rerank=True
+            ),
+            fused,
+        ),
+    )
+
+
+CONFIGS: tuple[RetrievalConfig, ...] = ablation_configs()

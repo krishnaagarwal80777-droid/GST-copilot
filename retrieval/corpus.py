@@ -29,6 +29,7 @@ from ingest.index import load_processed_records
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data" / "raw"
 CORE_FILE = ROOT / "data" / "processed" / "core_provisions.jsonl"
+DISTRACTOR_FILE = ROOT / "data" / "processed" / "distractors.jsonl"
 ENGINE_FILE = ROOT / "data" / "processed" / "provisions.jsonl"
 ACT_PDF = RAW / "cgst-act_cbic-taxinfo_2022-09-28.pdf"
 RULES_TITLE = "Central Goods and Services Tax Rules, 2017"
@@ -47,6 +48,7 @@ class IndexRow:
     effective_to: date | None
     in_force_since: date
     text: str
+    servable: bool = True
 
 
 @dataclass(frozen=True)
@@ -141,8 +143,11 @@ def provision_rows() -> list[IndexRow]:
             if heading:
                 rule_headings.setdefault(record.path, heading)
 
+    distractors = load_processed_records(DISTRACTOR_FILE)
+    if not distractors:
+        raise FileNotFoundError(f"{DISTRACTOR_FILE} is missing; run `make ingest` first")
     rows: list[IndexRow] = []
-    for record in core + engine:
+    for record in core + engine + distractors:
         rows.append(_provision_row(record, section_headings, rule_headings))
     return rows
 
@@ -153,10 +158,10 @@ def _provision_row(
     top = "/".join(record.path.split("/")[:2])
     if record.doc_type == "act":
         source = ACT_TITLE
-        heading = section_headings.get(top.split("/s")[-1], "")
+        heading = record.heading or section_headings.get(top.split("/s")[-1], "")
     else:
         source = RULES_TITLE
-        heading = rule_headings.get(top, "")
+        heading = record.heading or rule_headings.get(top, "")
     prefix = f"{source}, {citation_label(record.path)}" + (f" - {heading}" if heading else "")
     return IndexRow(
         id=record.id,
@@ -169,6 +174,7 @@ def _provision_row(
         effective_to=record.effective_to,
         in_force_since=record.in_force_since,
         text=f"{prefix}: {_flat(record.text)}",
+        servable=record.servable,
     )
 
 

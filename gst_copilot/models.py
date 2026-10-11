@@ -38,6 +38,8 @@ class ProvisionRecord(BaseModel):
     context_prefix: str = ""
     verified: bool = True
     verified_by: str | None = None
+    # False for retrieval distractors (unversioned snapshot text): retrievable, never citable.
+    servable: bool = True
     effective_from: date
     effective_to: date | None = None
     in_force_since: date

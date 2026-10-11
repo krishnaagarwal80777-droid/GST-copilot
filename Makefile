@@ -7,7 +7,7 @@ PYTHON ?= python
 .PHONY: ingest amendments version-rule36 version-rules core-provisions eval eval-retrieval test
 
 ingest:
-	$(PYTHON) -m ingest.index
+	$(PYTHON) -m ingest.act_snapshot
 
 amendments:
 	$(PYTHON) -m ingest.notifications

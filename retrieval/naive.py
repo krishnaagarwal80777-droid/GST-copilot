@@ -51,6 +51,7 @@ def naive_rows(tokenizer, raw_dir: Path = RAW) -> list[dict]:
                     "effective_to": "9999-12-31",
                     "in_force_since": "0001-01-01",
                     "text": chunk,
+                    "servable": "0",
                 }
             )
     return rows

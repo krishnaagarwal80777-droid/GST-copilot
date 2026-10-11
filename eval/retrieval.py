@@ -20,18 +20,19 @@ import csv
 import re
 import subprocess
 from collections import defaultdict
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from statistics import mean
 from typing import Any
 
-from eval.harness import load_eval_items, scored_items
+from eval.split import items_in
 from gst_copilot.models import EvalItem
 from retrieval.config import CONFIGS, RetrievalConfig
 from retrieval.corpus import RATE_NOTIFICATIONS
 from retrieval.embed import Embedder
 from retrieval.naive import shingles
 from retrieval.pipeline import NAIVE_TABLE, PROVISIONS_TABLE, Retriever, build_indexes
+from retrieval.rerank import Reranker
 from retrieval.store import open_store
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,12 +40,16 @@ RESULTS_FILE = ROOT / "eval" / "results" / "retrieval.csv"
 FIELDS = (
     "timestamp",
     "git_hash",
+    "split",
     "config",
+    "index_size",
+    "index_records",
     "category",
     "n",
     "recall@5",
     "recall@10",
     "mrr@10",
+    "fusion",
     "backend",
     "relevance",
 )
@@ -63,7 +68,14 @@ def git_hash() -> str:
             text=True,
             check=True,
         )
-        return result.stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        return result.stdout.strip() + ("-dirty" if dirty else "")
     except (OSError, subprocess.CalledProcessError):
         return "nogit"
 
@@ -134,58 +146,102 @@ def score_item(ranked_hits: list[list[str]], n_gold: int) -> tuple[float, float,
     return recall(5), recall(10), (1.0 / first if first else 0.0)
 
 
-def evaluate(configs: tuple[RetrievalConfig, ...] = CONFIGS, *, rebuild: bool = True) -> list[dict]:
-    store = open_store()
-    embedder = Embedder()
-    if rebuild:
-        counts = build_indexes(store, embedder)
-        print(f"indexed with {store.backend}: {counts}")
-    retriever = Retriever(store, embedder)
-    provision_rows = store.rows(PROVISIONS_TABLE)
-    naive_text = {row["record_id"]: row for row in store.rows(NAIVE_TABLE)}
-    items = [item for item in scored_items(load_eval_items()) if item.gold_paths]
-    stamp, commit = datetime.now(UTC).isoformat(timespec="seconds"), git_hash()
+def fusion_label(config: RetrievalConfig) -> str:
+    if not (config.dense and config.bm25):
+        return ""
+    if config.fusion == "dense_first":
+        return f"dense_first(tie_eps={config.tie_eps})"
+    return f"rrf(k={config.rrf_k},w_dense={config.w_dense},w_bm25={config.w_bm25})"
 
-    results: list[dict] = []
-    for config in configs:
+
+class Evaluation:
+    """One store/model session that can score many configs on a split."""
+
+    def __init__(self, *, rebuild: bool = False, reranker: bool = False) -> None:
+        self.store = open_store()
+        self.embedder = Embedder()
+        if rebuild:
+            counts = build_indexes(self.store, self.embedder)
+            print(f"indexed with {self.store.backend}: {counts}")
+        self.retriever = Retriever(self.store, self.embedder, Reranker() if reranker else None)
+        self.provision_rows = self.store.rows(PROVISIONS_TABLE)
+        naive = self.store.rows(NAIVE_TABLE)
+        self.naive_text = {row["record_id"]: row for row in naive}
+        records = len({row["record_id"] for row in self.provision_rows})
+        self.sizes = {
+            "structured": (len(self.provision_rows), records),
+            "naive": (len(naive), len(naive)),
+        }
+
+    def item_scores(self, config: RetrievalConfig, items) -> dict[str, list]:
         per_category: dict[str, list[tuple[float, float, float]]] = defaultdict(list)
         for item in items:
-            ranked = retriever.search(item.question, config, on=item.ref_date, k=10)
+            ranked = self.retriever.search(item.question, config, on=item.ref_date, k=10)
             if config.index == "naive":
-                matchers = naive_matchers(item, provision_rows)
+                matchers = naive_matchers(item, self.provision_rows)
                 hits = []
                 for chunk_id in ranked:
-                    chunk = naive_text[chunk_id]
+                    chunk = self.naive_text[chunk_id]
                     hit = []
                     for path, (source, marks) in matchers.items():
                         if source is not None and chunk["path"] != source:
                             continue
                         n = len(next(iter(marks))) if marks else 8
-                        chunk_marks = shingles(chunk["text"], n)
-                        if marks & chunk_marks:
+                        if marks & shingles(chunk["text"], n):
                             hit.append(path)
                     hits.append(hit)
             else:
-                gold = gold_versions(item, provision_rows)
+                gold = gold_versions(item, self.provision_rows)
                 hits = [[path for path, rid in gold.items() if rid == result] for result in ranked]
             per_category[item.category].append(score_item(hits, len(item.gold_paths)))
+        return per_category
+
+    def rows(self, config: RetrievalConfig, items, *, split: str, stamp: str, commit: str):
+        per_category = self.item_scores(config, items)
+        size, records = self.sizes[config.index]
+        out = []
         for category, scores in [("overall", sum(per_category.values(), []))] + sorted(
             per_category.items()
         ):
-            results.append(
+            out.append(
                 {
                     "timestamp": stamp,
                     "git_hash": commit,
+                    "split": split,
                     "config": config.name,
+                    "index_size": size,
+                    "index_records": records,
                     "category": category,
                     "n": len(scores),
                     "recall@5": round(mean(score[0] for score in scores), 4),
                     "recall@10": round(mean(score[1] for score in scores), 4),
                     "mrr@10": round(mean(score[2] for score in scores), 4),
-                    "backend": store.backend,
+                    "fusion": fusion_label(config),
+                    "backend": self.store.backend,
                     "relevance": "text_overlap" if config.index == "naive" else "version",
                 }
             )
+        return out
+
+
+def split_items(split: str) -> list[EvalItem]:
+    """Scored items with gold paths in the dev or test split (eval/split.json)."""
+    return [item for item in items_in(split) if item.gold_paths]
+
+
+def evaluate(
+    configs: tuple[RetrievalConfig, ...] | None = None,
+    *,
+    split: str = "test",
+    rebuild: bool = True,
+) -> list[dict]:
+    configs = configs or CONFIGS
+    session = Evaluation(rebuild=rebuild, reranker=any(config.rerank for config in configs))
+    items = split_items(split)
+    stamp, commit = datetime.now(UTC).isoformat(timespec="seconds"), git_hash()
+    results: list[dict] = []
+    for config in configs:
+        results.extend(session.rows(config, items, split=split, stamp=stamp, commit=commit))
     return results
 
 
@@ -199,16 +255,26 @@ def write_results(results: list[dict], path: Path = RESULTS_FILE) -> None:
         writer.writerows(results)
 
 
-def main() -> None:
-    results = evaluate()
-    write_results(results)
-    print(f"{'config':14} {'category':15} {'n':>3} {'R@5':>6} {'R@10':>6} {'MRR':>6}")
+def print_table(results: list[dict]) -> None:
+    print(f"{'config':14} {'size':>5} {'category':15} {'n':>3} {'R@5':>6} {'R@10':>6} {'MRR':>6}")
     for row in results:
         print(
-            f"{row['config']:14} {row['category']:15} {row['n']:>3} {row['recall@5']:>6.3f} "
-            f"{row['recall@10']:>6.3f} {row['mrr@10']:>6.3f}"
+            f"{row['config']:14} {row['index_size']:>5} {row['category']:15} {row['n']:>3} "
+            f"{row['recall@5']:>6.3f} {row['recall@10']:>6.3f} {row['mrr@10']:>6.3f}"
         )
-    print(f"appended {len(results)} rows to {RESULTS_FILE.relative_to(ROOT)} ({date.today()})")
+
+
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Retrieval evaluation (no LLM).")
+    parser.add_argument("--split", choices=("dev", "test"), default="test")
+    parser.add_argument("--no-rebuild", action="store_true", help="reuse the existing index")
+    args = parser.parse_args()
+    results = evaluate(split=args.split, rebuild=not args.no_rebuild)
+    write_results(results)
+    print_table(results)
+    print(f"appended {len(results)} rows to {RESULTS_FILE.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

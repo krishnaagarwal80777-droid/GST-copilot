@@ -49,9 +49,31 @@ def test_rrf_rewards_agreement() -> None:
 
 def test_ablation_ladder_is_cumulative() -> None:
     names = [config.name for config in CONFIGS]
-    assert names == ["naive", "dense", "bm25", "dense+bm25", "+exact_match", "+date_filter"]
-    full = CONFIGS[-1]
+    assert names == [
+        "naive",
+        "dense",
+        "bm25",
+        "dense+bm25",
+        "+exact_match",
+        "+date_filter",
+        "+reranker",
+    ]
+    full = CONFIGS[-2]
     assert (full.dense, full.bm25, full.exact_match, full.date_filter) == (True, True, True, True)
+    assert CONFIGS[-1].rerank and not full.rerank
+
+
+def test_weighted_rrf_and_dense_first() -> None:
+    from retrieval.fusion import dense_first, weighted_rrf
+
+    dense, bm25 = ["a", "b", "c"], ["c", "b", "d"]
+    # Equal weights reward agreement; a zero BM25 weight reduces to the dense order.
+    assert weighted_rrf([dense, bm25], [1.0, 1.0])[0] == "c"
+    assert weighted_rrf([dense, bm25], [1.0, 0.0])[:3] == dense
+    similarity = {"a": 0.80, "b": 0.795, "c": 0.70}
+    assert dense_first(dense, similarity, bm25) == ["a", "b", "c", "d"]
+    # b is within 0.01 of a, and BM25 ranks b higher, so b moves up; c is outside the band.
+    assert dense_first(dense, similarity, bm25, tie_eps=0.01) == ["b", "a", "c", "d"]
 
 
 class HashEmbedder:
@@ -79,6 +101,7 @@ def _row(record_id: str, start: str, end: str | None, text: str) -> dict:
         "effective_to": end or OPEN_END,
         "in_force_since": start,
         "text": text,
+        "servable": "1",
     }
 
 
