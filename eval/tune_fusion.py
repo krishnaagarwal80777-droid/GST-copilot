@@ -2,9 +2,16 @@
 
 Grid: weighted RRF over k x BM25 weight (dense weight 1), and dense-first with a BM25
 tie-break over tie_eps. Each candidate is scored as the full pipeline (exact match + date
-filter) and as plain dense+bm25. Selection: highest full-pipeline dev MRR@10, then dense+bm25
-dev MRR@10, then the simpler candidate (earlier in the grid). Writes every candidate to
-eval/results/fusion_tuning_dev.csv; copy the winner into retrieval.config.TUNED_FUSION.
+filter) and as plain dense+bm25.
+
+Selection: candidates whose full-pipeline dev MRR@10 is within one item of the best (1/n,
+since one item moving rank changes MRR by at most 1/n) are treated as tied; among them the
+highest dense+bm25 dev MRR@10 wins, then the simpler candidate (earlier in the grid). The full
+pipeline is dominated by exact-match pins and the date filter, so fusion differences there are
+within noise; dense+bm25 is where fusion is measurable. (An earlier rule that ranked on
+full-pipeline MRR alone picked a candidate one item ahead there but worst on dense+bm25.)
+Writes every candidate to eval/results/fusion_tuning_dev.csv; copy the winner into
+retrieval.config.TUNED_FUSION.
 """
 
 from __future__ import annotations
@@ -79,7 +86,9 @@ def main() -> None:
             f"full MRR={full[2]:.3f} R@5={full[0]:.3f} | "
             f"dense+bm25 MRR={plain[2]:.3f} R@5={plain[0]:.3f}"
         )
-    best = max(rows, key=lambda row: (row["full_mrr@10"], row["dense+bm25_mrr@10"], -row["order"]))
+    top_full = max(row["full_mrr@10"] for row in rows)
+    tied = [row for row in rows if row["full_mrr@10"] >= top_full - 1 / len(items) - 1e-9]
+    best = max(tied, key=lambda row: (row["dense+bm25_mrr@10"], -row["order"]))
     for row in rows:
         row["selected"] = row is best
     OUT.parent.mkdir(parents=True, exist_ok=True)
