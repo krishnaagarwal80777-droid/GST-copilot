@@ -58,7 +58,9 @@ def overall(per_category: dict) -> tuple[float, float, float]:
 
 def main() -> None:
     session = Evaluation(rebuild=False)
-    items = split_items("dev")
+    # Hand-written dev items only: the committed tuning (fusion_tuning_dev.csv) predates the
+    # templated items, and this keeps it reproducible.
+    items = split_items("dev", source="hand")
     stamp, commit = datetime.now(UTC).isoformat(timespec="seconds"), git_hash()
     rows = []
     for order, candidate in enumerate(grid()):

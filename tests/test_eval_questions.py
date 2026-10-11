@@ -2,11 +2,19 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
+from datetime import date
 from pathlib import Path
 
 import pytest
 
-from eval.harness import PENDING_SOURCE_GROUP, load_eval_items, scored_items, summarize_eval_items
+from eval.harness import (
+    PENDING_SOURCE_GROUP,
+    act_source_horizon,
+    load_eval_items,
+    scored_items,
+    summarize_eval_items,
+)
+from ingest.act_html import load_pages
 from ingest.index import load_processed_records
 from retrieval.provisions import get_provision
 
@@ -34,11 +42,12 @@ def test_eval_set_shape(items) -> None:
         "abstain": 5,
     }
     assert all(item.group_id for item in items)
+    # Every item is scored since the CBIC section pages (2026-10-12) became the Act source.
     assert Counter(item.category for item in scored_items(items)) == {
-        "date_sensitive": 14,
+        "date_sensitive": 16,
         "numeric": 10,
-        "direct_lookup": 9,
-        "interpretive": 8,
+        "direct_lookup": 10,
+        "interpretive": 9,
         "abstain": 5,
     }
     for item in items:
@@ -47,13 +56,49 @@ def test_eval_set_shape(items) -> None:
 
 
 def test_act_items_past_the_source_horizon_are_pending_and_unscored(items) -> None:
-    # The newest consolidated Act source is cgst-act_cbic-taxinfo_2022-09-28.pdf.
+    # The newest Act source is the latest CBIC section-page snapshot (was the 2022-09-28 PDF).
+    horizon = act_source_horizon()
+    assert horizon == date(2026, 10, 12)
     for item in items:
         act = any(path.startswith("CGST/s") for path in item.gold_paths)
-        pending = act and item.ref_date.isoformat() > "2022-09-28"
+        pending = act and item.ref_date > horizon
         assert (item.group_id == PENDING_SOURCE_GROUP) == pending, item.question
     summary = summarize_eval_items(items)
-    assert (summary["num_items"], summary["num_scored"], summary["pending_source"]) == (50, 46, 4)
+    assert (summary["num_items"], summary["num_scored"], summary["pending_source"]) == (50, 50, 0)
+
+
+# The four items that were pending_source until the CBIC pages arrived. Each gold answer's key
+# words are checked against the raw page text (body or footnote), not against parsed records.
+FORMERLY_PENDING = {
+    ("ds-s16-4-2022", "2022-09-30"): [
+        # Footnote 6: the words "thirtieth day of November" replaced w.e.f. 2022-10-01.
+        "Substituted (w.e.f. 1st October, 2022",
+        "for ''due date of furnishing of the return under section 39 for the month of September",
+        "following the end of financial year to which such invoice or",
+        "debit note pertains or furnishing of the relevant annual return, whichever is earlier",
+    ],
+    ("ds-s16-4-2022", "2022-10-01"): [
+        "after the 6[thirtieth day of November] following the end of financial year",
+    ],
+    ("dl-s16-2-ba", "2023-04-01"): [
+        "3[(ba) the details of input tax credit in respect of the said supply communicated to "
+        "such registered person under section 38 has not been restricted;]",
+        "Inserted (w.e.f. 1st October, 2022",
+    ],
+    ("int-itc-restricted", "2023-06-01"): [
+        "communicated to such registered person under section 38 has not been restricted",
+    ],
+}
+
+
+def test_formerly_pending_items_quote_the_cbic_page(items) -> None:
+    page = " ".join(load_pages()["16"].text().split())
+    keyed = {(item.group_id, item.ref_date.isoformat()): item for item in items}
+    assert set(FORMERLY_PENDING) <= set(keyed)
+    for key, phrases in FORMERLY_PENDING.items():
+        assert keyed[key].group_id != PENDING_SOURCE_GROUP
+        for phrase in phrases:
+            assert phrase in page, (key, phrase)
 
 
 def test_linked_items_are_same_question_on_two_dates(items) -> None:
@@ -137,6 +182,17 @@ QUOTED_IN_SOURCE = [
     ),
     ("CGST/s17/ss5/cl(ab)", "2022-09-28", "insured by him"),
     ("CGST/s9/ss3", "2022-09-28", "paid on reverse charge basis by the recipient"),
+    # Items scored once the CBIC section pages became the Act source.
+    (
+        "CGST/s16/ss2/cl(ba)",
+        "2023-04-01",
+        "communicated to such registered person under section 38 has not been restricted",
+    ),
+    (
+        "CGST/s16/ss2/cl(ba)",
+        "2023-06-01",
+        "communicated to such registered person under section 38 has not been restricted",
+    ),
 ]
 
 

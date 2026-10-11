@@ -1,5 +1,8 @@
 version: 1
 source_act_pdf: data/raw/cgst-act_cbic-taxinfo_2022-09-28.pdf
+# Post-2022 Act versions: latest data/raw/cgst-act-sections_cbic-taxinfo_<date>/ snapshot
+# (ingest.act_post_pdf); pre-2022 text of those nodes is checked against source_act_pdf.
+source_act_html: data/raw/cgst-act-sections_cbic-taxinfo_*/
 source_rules_pdf: data/raw/cgst-rules-part-a_2021-05-18.pdf
 rules:
   - rule: "36"
@@ -22,7 +25,9 @@ rules:
       - CGST/r89
 act_provisions:
   # Section-level entries name the requested provision; `paths` are the versioned nodes built
-  # from the footnotes of source_act_pdf. Only footnoted (amended) nodes are versioned here.
+  # from the footnotes of source_act_pdf and, for amendments after it, source_act_html.
+  # Only footnoted (amended) nodes are versioned here. Amendments the sources cannot date are
+  # listed as pending in data/processed/act_post_pdf.json, not here.
   - section: "9(3)"
     citation: CGST Act section 9(3)
     paths:
@@ -37,6 +42,8 @@ act_provisions:
       - CGST/s16/ss2/cl(aa)
       - CGST/s16/ss2/cl(b)/explanation1
       - CGST/s16/ss2/cl(ba)
+      - CGST/s16/ss2/proviso2
+      - CGST/s16/ss2/proviso3
       - CGST/s16/ss4
       - CGST/s16/ss4/proviso1
   - section: "17(5)"
@@ -46,6 +53,13 @@ act_provisions:
       - CGST/s17/ss5/cl(aa)
       - CGST/s17/ss5/cl(ab)
       - CGST/s17/ss5/cl(b)
+      - CGST/s17/ss5/cl(fa)
+      - CGST/s17/ss5/explanation1
+      - CGST/s17/ss5/explanation2
+  - section: "17(3)"
+    citation: CGST Act section 17(3)
+    paths:
+      - CGST/s17/ss3/explanation1
 manual_rule_edits:
   - path: CGST/r42
     notification: 19/2022-Central Tax

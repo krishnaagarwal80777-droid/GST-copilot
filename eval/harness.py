@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -10,14 +10,30 @@ from gst_copilot.models import EvalItem
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_QUESTION_FILE = ROOT / "eval" / "questions.jsonl"
+# Generated from verified data by eval/templated.py (source="templated").
+TEMPLATED_QUESTION_FILE = ROOT / "eval" / "questions_templated.jsonl"
+QUESTION_FILES = (DEFAULT_QUESTION_FILE, TEMPLATED_QUESTION_FILE)
 DEFAULT_RESULTS_FILE = ROOT / "eval" / "results.jsonl"
-# Items whose gold answer depends on Act text newer than the latest consolidated Act source
-# (cgst-act_cbic-taxinfo_2022-09-28.pdf). They stay in the file but are never scored.
+# Items whose gold answer depends on Act text newer than the newest Act source held (see
+# act_source_horizon). They stay in the file but are never scored.
 PENDING_SOURCE_GROUP = "pending_source"
 
 
-def load_eval_items(path: str | Path = DEFAULT_QUESTION_FILE) -> list[EvalItem]:
-    """Load a JSONL evaluation dataset into Pydantic EvalItem objects."""
+def act_source_horizon() -> date:
+    """Knowledge date of the newest Act source: the date of the latest CBIC section-page
+    snapshot (data/raw/cgst-act-sections_cbic-taxinfo_<date>/, fetched by
+    ingest.fetch_act_sections). Before that snapshot existed it was 2022-09-28, the date of
+    cgst-act_cbic-taxinfo_2022-09-28.pdf."""
+    from ingest.act_html import latest_snapshot, snapshot_date
+
+    return date.fromisoformat(snapshot_date(latest_snapshot()))
+
+
+def load_eval_items(path: str | Path | None = None) -> list[EvalItem]:
+    """Load a JSONL evaluation dataset into EvalItem objects; by default the hand-written
+    set followed by the templated set (when it has been generated)."""
+    if path is None:
+        return [item for file in QUESTION_FILES if file.exists() for item in load_eval_items(file)]
     dataset = Path(path)
     items: list[EvalItem] = []
     with dataset.open("r", encoding="utf-8") as handle:

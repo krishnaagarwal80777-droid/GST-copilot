@@ -15,7 +15,8 @@ DISTRACTORS = ROOT / "data" / "processed" / "distractors.jsonl"
 
 def test_split_file_is_reproducible_and_covers_every_scored_item() -> None:
     assignment = load_split()
-    assert assignment == make_split()["items"]
+    # Earlier assignments are frozen; re-running the split adds nothing and moves nothing.
+    assert assignment == make_split(frozen=assignment)["items"]
     assert set(assignment) == {item_key(item) for item in scored_items(load_eval_items())}
     assert set(assignment.values()) == {"dev", "test"}
 
@@ -35,6 +36,15 @@ def test_split_keeps_groups_together_and_stratifies_by_category() -> None:
         total = counts["dev"] + counts["test"]
         assert counts["dev"] and counts["test"], category
         assert abs(counts["test"] / total - 0.4) <= 0.15, (category, counts)
+
+
+def test_extending_the_split_never_moves_an_assigned_item() -> None:
+    assignment = load_split()
+    hand = sorted(key for key in assignment if not key.startswith("tpl-"))
+    dropped = {key: part for key, part in assignment.items() if key not in hand[:4]}
+    extended = make_split(frozen=dropped)["items"]
+    assert set(extended) == set(assignment)
+    assert all(extended[key] == part for key, part in dropped.items())
 
 
 @pytest.fixture(scope="module")

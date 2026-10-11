@@ -18,6 +18,9 @@ ACT_PDF = ROOT / "data" / "raw" / "cgst-act_cbic-taxinfo_2022-09-28.pdf"
 RULES_BASE_SOURCE = "data/raw/cgst-rules-part-a_2021-05-18.pdf"
 OUTPUT_PATH = ROOT / "data" / "processed" / "core_provisions.jsonl"
 FOOTNOTES_PATH = ROOT / "data" / "processed" / "core_provision_footnotes.json"
+# Post-2022 Act versions come from the CBIC section pages (ingest.act_post_pdf); their
+# footnotes and the amendments that could not be dated go here.
+POST_PDF_PATH = ROOT / "data" / "processed" / "act_post_pdf.json"
 ACT_BASE_DATE = date(2017, 7, 1)
 AMENDMENT_EFFECTIVE_DATE = date(2019, 2, 1)
 
@@ -1227,7 +1230,31 @@ def build_act_core_provisions(
 
 
 def build_core_provisions() -> tuple[list[ProvisionRecord], dict[str, list[dict[str, Any]]]]:
-    records, footnotes = build_act_core_provisions(_read_pdf_text(ACT_PDF))
+    records, footnotes, _ = build_core_provisions_with_post_pdf()
+    return records, footnotes
+
+
+def build_core_provisions_with_post_pdf() -> tuple[
+    list[ProvisionRecord], dict[str, list[dict[str, Any]]], dict[str, Any]
+]:
+    """Core records, the PDF footnotes, and the post-2022 report (HTML footnotes, pending)."""
+    from ingest.act_html import latest_snapshot, load_pages, snapshot_date
+    from ingest.act_post_pdf import build_post_pdf, check_pdf_chains_still_current
+
+    pdf_text = _read_pdf_text(ACT_PDF)
+    records, footnotes = build_act_core_provisions(pdf_text)
+    snapshot = latest_snapshot()
+    pages = load_pages(snapshot)
+    check_pdf_chains_still_current(pages, records)
+    post_records, pending, html_footnotes = build_post_pdf(pages, pdf_text)
+    records = records + post_records
+    post_pdf = {
+        "html_snapshot": snapshot.relative_to(ROOT).as_posix(),
+        "html_snapshot_date": snapshot_date(snapshot),
+        "records": [record.id for record in post_records],
+        "pending": pending,
+        "footnotes": html_footnotes,
+    }
     manifest = yaml.safe_load(MANIFEST_PATH.read_text(encoding="utf-8"))
     act_paths = {path for row in manifest["act_provisions"] for path in row["paths"]}
     if act_paths != {record.path for record in records}:
@@ -1248,7 +1275,7 @@ def build_core_provisions() -> tuple[list[ProvisionRecord], dict[str, list[dict[
         rules,
         ROOT / "data" / "processed" / "amendments.jsonl",
     )
-    return rules + records, footnotes
+    return rules + records, footnotes, post_pdf
 
 
 def _attach_rule_sources(
@@ -1290,10 +1317,14 @@ def _attach_rule_sources(
 
 
 def write_core_provisions() -> list[ProvisionRecord]:
-    records, footnotes = build_core_provisions()
+    records, footnotes, post_pdf = build_core_provisions_with_post_pdf()
     write_processed_records(records, OUTPUT_PATH)
     FOOTNOTES_PATH.write_text(
         json.dumps(footnotes, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    POST_PDF_PATH.write_text(
+        json.dumps(post_pdf, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     return records

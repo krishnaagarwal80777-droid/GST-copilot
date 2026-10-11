@@ -77,5 +77,7 @@ class EvalItem(BaseModel):
     category: str
     answerable: bool
     expected_tool_output: dict[str, Any] | None = None
-    source: Literal["faq", "icai", "hand"]
+    source: Literal["faq", "icai", "hand", "templated"]
     group_id: str | None = None
+    # Templated items only: how the item was generated (eval/templated.py).
+    template: dict[str, Any] | None = None

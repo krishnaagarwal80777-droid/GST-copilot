@@ -7,11 +7,14 @@ Relevance
 - Naive config (raw 500-token chunks, no paths or versions): a chunk is relevant to a gold
   provision if it contains an 8-word shingle that the gold version introduced (absent from the
   version before it; for a first version, absent from the version after it). A provision with
-  one version matches on any of its shingles. Rate items need a 6-word shingle of the schedule
+  one version, or a version with no text of its own (its text is contained in its neighbour's),
+  matches on any of its shingles. Rate items need a 6-word shingle of the schedule
   description quoted in the gold answer, in that notification's file.
 
 Only scored items with gold paths count (pending_source and abstain items are excluded).
-Results are appended to eval/results/retrieval.csv with config, git hash and timestamp.
+Rows are reported per source (hand-written, templated, and all) and category. Results are
+appended to eval/results/retrieval.csv with config, git hash and timestamp; rows written before
+templated items existed carry source=hand.
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
-from eval.split import items_in
+from eval.split import items_in, source_kind
 from gst_copilot.models import EvalItem
 from retrieval.config import CONFIGS, RetrievalConfig
 from retrieval.corpus import RATE_NOTIFICATIONS
@@ -41,6 +44,7 @@ FIELDS = (
     "timestamp",
     "git_hash",
     "split",
+    "source",
     "config",
     "index_size",
     "index_records",
@@ -130,7 +134,12 @@ def naive_matchers(item: EvalItem, rows: list[dict[str, Any]]) -> dict[str, tupl
             # Later versions: the text this version introduced.
             marks = gold - shingles(texts[chain[position - 1]], 8)
         if not marks:
-            raise ValueError(f"{path}: version {record_id} has no text of its own to match")
+            # The version's text is contained in its neighbour's (a pure insertion or
+            # omission), so no shingle is its own: match on any of its shingles, as for a
+            # provision with one version.
+            marks = gold
+        if not marks:
+            raise ValueError(f"{path}: version {record_id} has no text to match")
         matchers[path] = (None, marks)
     return matchers
 
@@ -175,6 +184,12 @@ class Evaluation:
 
     def item_scores(self, config: RetrievalConfig, items) -> dict[str, list]:
         per_category: dict[str, list[tuple[float, float, float]]] = defaultdict(list)
+        for item, score in self.scored(config, items):
+            per_category[item.category].append(score)
+        return per_category
+
+    def scored(self, config: RetrievalConfig, items) -> list[tuple[EvalItem, tuple]]:
+        out = []
         for item in items:
             ranked = self.retriever.search(item.question, config, on=item.ref_date, k=10)
             if config.index == "naive":
@@ -193,21 +208,28 @@ class Evaluation:
             else:
                 gold = gold_versions(item, self.provision_rows)
                 hits = [[path for path, rid in gold.items() if rid == result] for result in ranked]
-            per_category[item.category].append(score_item(hits, len(item.gold_paths)))
-        return per_category
+            out.append((item, score_item(hits, len(item.gold_paths))))
+        return out
 
     def rows(self, config: RetrievalConfig, items, *, split: str, stamp: str, commit: str):
-        per_category = self.item_scores(config, items)
+        scored = self.scored(config, items)
         size, records = self.sizes[config.index]
+        groups: dict[tuple[str, str], list] = defaultdict(list)
+        for item, score in scored:
+            for source in ("all", source_kind(item)):
+                groups[(source, "overall")].append(score)
+                groups[(source, item.category)].append(score)
+        sources = ("all", "hand", "templated")
+        order = sorted(groups, key=lambda k: (sources.index(k[0]), k[1] != "overall", k[1]))
         out = []
-        for category, scores in [("overall", sum(per_category.values(), []))] + sorted(
-            per_category.items()
-        ):
+        for source, category in order:
+            scores = groups[(source, category)]
             out.append(
                 {
                     "timestamp": stamp,
                     "git_hash": commit,
                     "split": split,
+                    "source": source,
                     "config": config.name,
                     "index_size": size,
                     "index_records": records,
@@ -224,9 +246,14 @@ class Evaluation:
         return out
 
 
-def split_items(split: str) -> list[EvalItem]:
-    """Scored items with gold paths in the dev or test split (eval/split.json)."""
-    return [item for item in items_in(split) if item.gold_paths]
+def split_items(split: str, source: str | None = None) -> list[EvalItem]:
+    """Scored items with gold paths in the dev or test split (eval/split.json); ``source``
+    ("hand" or "templated") keeps only that kind."""
+    return [
+        item
+        for item in items_in(split)
+        if item.gold_paths and (source is None or source_kind(item) == source)
+    ]
 
 
 def evaluate(
@@ -256,10 +283,14 @@ def write_results(results: list[dict], path: Path = RESULTS_FILE) -> None:
 
 
 def print_table(results: list[dict]) -> None:
-    print(f"{'config':14} {'size':>5} {'category':15} {'n':>3} {'R@5':>6} {'R@10':>6} {'MRR':>6}")
+    print(
+        f"{'config':14} {'size':>5} {'source':9} {'category':15} {'n':>3} "
+        f"{'R@5':>6} {'R@10':>6} {'MRR':>6}"
+    )
     for row in results:
         print(
-            f"{row['config']:14} {row['index_size']:>5} {row['category']:15} {row['n']:>3} "
+            f"{row['config']:14} {row['index_size']:>5} {row['source']:9} {row['category']:15} "
+            f"{row['n']:>3} "
             f"{row['recall@5']:>6.3f} {row['recall@10']:>6.3f} {row['mrr@10']:>6.3f}"
         )
 
@@ -269,9 +300,11 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Retrieval evaluation (no LLM).")
     parser.add_argument("--split", choices=("dev", "test"), default="test")
+    parser.add_argument("--configs", nargs="*", help="config names to run (default: all)")
     parser.add_argument("--no-rebuild", action="store_true", help="reuse the existing index")
     args = parser.parse_args()
-    results = evaluate(split=args.split, rebuild=not args.no_rebuild)
+    configs = tuple(c for c in CONFIGS if not args.configs or c.name in args.configs)
+    results = evaluate(configs, split=args.split, rebuild=not args.no_rebuild)
     write_results(results)
     print_table(results)
     print(f"appended {len(results)} rows to {RESULTS_FILE.relative_to(ROOT)}")

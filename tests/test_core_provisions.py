@@ -26,7 +26,13 @@ def test_core_provision_manifest_lists_requested_rules_and_act_sections() -> Non
     manifest = yaml.safe_load((ROOT / "eval" / "core_provisions.yaml").read_text(encoding="utf-8"))
 
     assert {row["rule"] for row in manifest["rules"]} == {"36", "42", "43", "86B", "89"}
-    assert {row["section"] for row in manifest["act_provisions"]} == {"9(3)", "9(4)", "16", "17(5)"}
+    assert {row["section"] for row in manifest["act_provisions"]} == {
+        "9(3)",
+        "9(4)",
+        "16",
+        "17(3)",
+        "17(5)",
+    }
 
 
 def test_section_17_5_a_versions_follow_the_source_footnote() -> None:
@@ -214,8 +220,9 @@ def test_section_17_5_a_text_as_of_either_side_of_2019_amendment(act_build) -> N
         assert _as_of(records, path, date(2019, 2, 1)) is not None
 
 
-def test_act_version_chains_are_contiguous_and_cover_manifest(act_build) -> None:
-    records, _ = act_build
+def test_act_version_chains_are_contiguous_and_cover_manifest(core_records) -> None:
+    # PDF-built chains plus the post-2022 versions from the CBIC section pages.
+    records = [record for record in core_records if record.doc_type == "act"]
     manifest = yaml.safe_load((ROOT / "eval" / "core_provisions.yaml").read_text(encoding="utf-8"))
     paths = {path for row in manifest["act_provisions"] for path in row["paths"]}
     assert paths == {record.path for record in records}

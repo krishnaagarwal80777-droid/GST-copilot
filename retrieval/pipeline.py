@@ -111,6 +111,22 @@ class Retriever:
             fused = pinned + [record_id for record_id in fused if record_id not in pinned]
         return fused[:k]
 
+    def rows_for(
+        self, record_ids: list[str], *, on: date, known_by: date | None = None
+    ) -> list[dict[str, Any]]:
+        """Structured-index rows (chunks) of these records that are valid on the date."""
+        known_by = known_by or date.today()
+        rows, _ = self._table(PROVISIONS_TABLE, False)
+        wanted = set(record_ids)
+        return [row for row in rows if row["record_id"] in wanted and _valid(row, on, known_by)]
+
+    def exact_hits(self, query: str, *, on: date, known_by: date | None = None) -> list[str]:
+        """Record ids the exact-match path pins for this query (servable, date-valid)."""
+        known_by = known_by or date.today()
+        rows, _ = self._table(PROVISIONS_TABLE, False)
+        mask = [_valid(row, on, known_by) for row in rows]
+        return self._exact(query, rows, mask)
+
     def _rerank(
         self, query: str, record_ids: list[str], rows: list[dict[str, Any]], mask
     ) -> list[str]:
