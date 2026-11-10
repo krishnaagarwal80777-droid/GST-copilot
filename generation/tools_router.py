@@ -3,8 +3,9 @@ Python runs it, and the answer quotes the tool's numbers.
 
 1. Plan: a Gemini function-calling turn with the tool declarations below. The model may call
    tools over up to MAX_ROUNDS turns; each result is sent back to it, so a rate found by
-   rate_lookup can be passed to gst_split. The reference date is never an argument: Python
-   passes it.
+   rate_lookup can be passed to gst_split. Planning stops after a round of gst_split calls or
+   a failed or inconclusive call (no further turn could change the outcome). The reference
+   date is never an argument: Python passes it.
 2. Run: tools.rate_lookup / tools.gst_split, pure functions; an invalid argument is recorded
    as a failed call.
 3. Each tool result becomes a context chunk (id ``TOOL-<n>``, path ``TOOL/<tool>``) for the
@@ -199,6 +200,13 @@ def plan_and_run(
             responses.append(
                 {"functionResponse": {"name": done.name, "response": {"output": output}}}
             )
+        # Nothing can follow gst_split, and a failed or inconclusive call ends in an
+        # abstention, so another planner turn would only cost a call.
+        latest = run.calls[-len(responses) :]
+        if all(c.name == "gst_split" for c in latest) or any(
+            not c.ok or c.output["status"] != "ok" for c in latest
+        ):
+            break
         contents = [
             *contents,
             {"role": "model", "parts": turn.parts},

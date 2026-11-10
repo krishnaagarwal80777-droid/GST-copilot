@@ -85,7 +85,7 @@ def test_chained_lookup_and_split_answer_quotes_the_tool_numbers() -> None:
     assert "TOOL- are calculator outputs" in system
     assert "[ID: TOOL-1] Calculation: rate_lookup" in prompt and "cgst: 4500.00" in prompt
     assert "Calculation: gst_split" in result.rendered
-    assert {"plan", "tools"} <= set(result.timings_ms) and len(result.plan_llm) == 3
+    assert {"plan", "tools"} <= set(result.timings_ms) and len(result.plan_llm) == 2
 
 
 def test_a_number_not_in_any_tool_output_abstains() -> None:
@@ -173,4 +173,4 @@ def test_api_returns_the_calculation_and_logs_tool_calls(tmp_path) -> None:
         ("gst_split", True),
     ]
     assert all(t["latency_ms"] >= 0 for t in line["tool_calls"])
-    assert line["planner_calls"] == 3 and "50000" not in json.dumps(line)
+    assert line["planner_calls"] == 2 and "50000" not in json.dumps(line)
