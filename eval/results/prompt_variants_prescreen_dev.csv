@@ -1,0 +1,5 @@
+variant,generated,citation_precision,citation_recall,abstain_tp,abstain_fp,abstain_fn,format_failures,dropped_citations,mean_input_tokens,mean_output_tokens,mean_tokens,mean_latency_s,latency_n,prescreen
+baseline,91,1.0,0.9783,3,1,0,0,0,2699.527,377.319,3076.8,6.337,91,baseline
+strict_citations,91,1.0,0.9674,3,2,0,0,0,2754.527,382.637,3137.2,5.345,91,dropped: citation recall below baseline; more abstention FP than baseline
+few_shot,91,1.0,0.9783,3,1,0,0,0,3525.527,279.934,3805.5,4.16,91,survives
+provision_first,91,1.0,0.9783,3,1,0,0,0,2768.527,423.264,3191.8,6.46,91,survives: judged (best challenger)

@@ -411,7 +411,8 @@ def run(
     from retrieval.rerank import Reranker
     from retrieval.store import open_store
 
-    items_file = items_path(split, tag, judge_version)
+    # An unjudged run (--no-judge) gets the plain file name; judging it later adds the suffix.
+    items_file = items_path(split, tag, "v1" if skip_judge else judge_version)
     if split == "test" and not dry_run and items_file.exists() and not rerun_test:
         raise SystemExit(
             f"{items_file.relative_to(ROOT)} exists: the test split has been run. "
