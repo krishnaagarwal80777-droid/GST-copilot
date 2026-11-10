@@ -14,6 +14,7 @@ from api.schemas import AskRequest, AskResponse, Health
 from api.service import AskService
 from generation.answer import Answerer
 from generation.llm import LLMError
+from observability.log import RequestLogger
 
 
 def default_answerer(settings: ApiSettings) -> Answerer:
@@ -30,7 +31,7 @@ def default_answerer(settings: ApiSettings) -> Answerer:
 def create_app(service: AskService | None = None) -> FastAPI:
     if service is None:
         settings = ApiSettings()
-        service = AskService(lambda: default_answerer(settings), settings)
+        service = AskService(lambda: default_answerer(settings), settings, RequestLogger())
     app = FastAPI(title="GST Tax Copilot", version="0.1.0")
     app.state.service = service
 

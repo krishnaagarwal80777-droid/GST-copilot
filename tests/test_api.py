@@ -133,6 +133,7 @@ def test_ask_returns_claims_with_numbered_citations() -> None:
     assert first["version_id"] == "CTR/9-2025/schI@v1" and first["effective_to"] is None
     assert first["text"] == "placeholder schedule row"
     assert first["source_url"] and first["source_url"].startswith("https://")
+    assert first["source_file"] == "ctr-09-2025_2025-09-17.pdf"
     assert second["path"] == "CGST/r36/ss4" and second["effective_from"] == "2021-05-18"
     assert (
         "First claim." in data["answer"] and "**Reference date used:** 2026-01-15" in data["answer"]

@@ -36,3 +36,6 @@ docs/
 # Claude
 CLAUDE.md
 claude.md
+
+# Request logs (observability)
+logs/

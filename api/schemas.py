@@ -70,7 +70,8 @@ class Citation(BaseModel):
     doc_type: str
     effective_from: date
     effective_to: date | None  # None: still in force
-    source_url: str | None
+    source_file: str | None  # filename in data/raw/ (see manifest.json)
+    source_url: str | None  # None when the file was added by hand
     text: str
 
 
