@@ -137,6 +137,20 @@ def parse_citations(query: str) -> list[str]:
     return list(dict.fromkeys(path for _, path in sorted(found)))
 
 
+def citation_doc_type(cited: str) -> str:
+    """Index doc_type a parsed citation refers to: "CGST/r36/ss4" -> "rule", "CGST/s17" ->
+    "act", "CTR/9-2025" -> "notification"."""
+    if cited.startswith("CTR/"):
+        return "notification"
+    return "rule" if cited.split("/")[1].startswith("r") else "act"
+
+
+def cited_doc_types(query: str) -> set[str]:
+    """Doc types the query names by citation ("rule N", "section N", "notification N/YYYY");
+    empty when it cites nothing."""
+    return {citation_doc_type(cited) for cited in parse_citations(query)}
+
+
 def exact_paths(cited: str, indexed_paths: Sequence[str]) -> list[str]:
     """Indexed paths for one citation: the path itself, then its descendants (shallowest first).
 

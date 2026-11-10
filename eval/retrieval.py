@@ -159,6 +159,7 @@ def fusion_label(config: RetrievalConfig) -> str:
     # With split_bm25 the Act/Rules and rate-schedule BM25 rankings are fused as two lists.
     split = config.bm25 and config.split_bm25 and config.index == "structured"
     lists = ",bm25=act_rules+rates" if split else ""
+    lists += ",typed_citations" if split and config.typed_citations else ""
     if not (config.dense and config.bm25):
         return f"rrf(k={config.rrf_k},w_bm25={config.w_bm25}{lists})" if split else ""
     if config.fusion == "dense_first":
@@ -306,12 +307,19 @@ def main() -> None:
     parser.add_argument("--configs", nargs="*", help="config names to run (default: all)")
     parser.add_argument("--no-rebuild", action="store_true", help="reuse the existing index")
     parser.add_argument(
+        "--no-typed-citations",
+        action="store_true",
+        help="ablation: citations match records of any doc type",
+    )
+    parser.add_argument(
         "--no-split-bm25",
         action="store_true",
         help="ablation: one BM25 index over Act, Rules and rate-schedule rows",
     )
     args = parser.parse_args()
-    ladder = ablation_configs(split_bm25=False) if args.no_split_bm25 else CONFIGS
+    ladder = ablation_configs(
+        split_bm25=not args.no_split_bm25, typed_citations=not args.no_typed_citations
+    )
     configs = tuple(c for c in ladder if not args.configs or c.name in args.configs)
     results = evaluate(configs, split=args.split, rebuild=not args.no_rebuild)
     write_results(results)

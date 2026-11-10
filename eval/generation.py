@@ -492,6 +492,11 @@ def main() -> None:
         "--no-date-gate", action="store_true", help="ablation: no knowledge-horizon date gate"
     )
     parser.add_argument(
+        "--no-typed-citations",
+        action="store_true",
+        help="ablation: citations match records of any doc type",
+    )
+    parser.add_argument(
         "--no-split-bm25",
         action="store_true",
         help="ablation: one BM25 index over Act, Rules and rate-schedule rows",
@@ -515,6 +520,8 @@ def main() -> None:
         config = replace(config, name=config.name + "-date_gate", date_gate=False)
     if args.no_gate:
         config = replace(config, name=config.name + "-gate", gate=False)
+    if args.no_typed_citations:
+        config = replace(config, name=config.name + "-typed_citations", typed_citations=False)
     if args.no_split_bm25:
         config = replace(config, name=config.name + "-split_bm25", split_bm25=False)
     if args.no_verify:

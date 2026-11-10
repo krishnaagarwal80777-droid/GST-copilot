@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from retrieval.config import CONFIGS, RetrievalConfig, ablation_configs
-from retrieval.exact_match import exact_paths, parse_citations
+from retrieval.exact_match import cited_doc_types, exact_paths, parse_citations
 from retrieval.fusion import rrf
 
 pytest.importorskip("lancedb")
@@ -32,6 +32,20 @@ from retrieval.store import DEFAULT_PG_DSN, OPEN_END, LanceStore, PgVectorStore 
 )
 def test_citations_normalise_to_canonical_paths(query, expected) -> None:
     assert parse_citations(query) == expected
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("What does rule 137 of the CGST Rules provide?", {"rule"}),
+        ("Is credit blocked under section 17(5)?", {"act"}),
+        ("rate under Notification 9/2025-CT(Rate)", {"notification"}),
+        ("rule 36(4) and section 16(2)(aa)", {"rule", "act"}),
+        ("What is the central tax rate on cement?", set()),
+    ],
+)
+def test_cited_doc_types(query, expected) -> None:
+    assert cited_doc_types(query) == expected
 
 
 def test_exact_paths_prefers_the_cited_node_then_children_then_ancestor() -> None:
@@ -64,6 +78,12 @@ def test_ablation_ladder_is_cumulative() -> None:
     # split_bm25 is on for every rung that uses BM25, and can be switched off for the ladder.
     assert [config.split_bm25 for config in CONFIGS] == [config.bm25 for config in CONFIGS]
     assert not any(config.split_bm25 for config in ablation_configs(split_bm25=False))
+    # typed_citations is on for every rung with exact match.
+    assert [c.typed_citations for c in CONFIGS] == [c.exact_match for c in CONFIGS]
+    assert not any(c.typed_citations for c in ablation_configs(typed_citations=False))
+    # typed_citations is on for every rung with exact match.
+    assert [c.typed_citations for c in CONFIGS] == [c.exact_match for c in CONFIGS]
+    assert not any(c.typed_citations for c in ablation_configs(typed_citations=False))
 
 
 def test_weighted_rrf_and_dense_first() -> None:
@@ -214,3 +234,57 @@ def test_split_bm25_gives_rate_rows_their_own_index_and_ranking(tmp_path) -> Non
     assert fused == ["CTR/0-0000/schI@v1", "T/s1@v1", "T/s2@v1"]
     with_dense = RetrievalConfig("t", bm25=True, split_bm25=True)
     assert set(retriever.search("alpha beta", with_dense, on=date(2021, 1, 1))) == set(fused)
+
+
+@pytest.fixture()
+def typed_retriever(tmp_path) -> Retriever:
+    # Synthetic rows exercising the mechanics only (not legal text): two rules, and one rate
+    # schedule whose rows carry S. No. 137 and the word "rules", like real schedule rows can.
+    def rule(record_id: str, text: str) -> dict:
+        return {**_row(record_id, "2018-01-01", None, text), "doc_type": "rule"}
+
+    def rate(s_no: int, text: str) -> dict:
+        row = _row("CTR/0-0000/schI@v1", "2018-01-01", None, text)
+        return {**row, "id": f"{row['id']}#{s_no}", "act_id": "CTR", "doc_type": "notification"}
+
+    filler = " ".join(f"word{n}" for n in range(40))
+    rows = [
+        rule("CGST/r137@v1", f"rule 137 alpha {filler}"),
+        rule("CGST/r21@v1", f"rule 21 beta {filler}"),
+        rate(137, "S. No. 137. 0000 gamma goods"),
+        rate(138, "S. No. 138. 0000 delta goods under the rules"),
+    ]
+    embedder = HashEmbedder()
+    store = LanceStore(tmp_path / "lance")
+    store.write(PROVISIONS_TABLE, rows, embedder.encode([row["text"] for row in rows]))
+    return Retriever(store, embedder)
+
+
+def _lexical(typed: bool) -> RetrievalConfig:
+    # Dense off: with four rows every row is a dense hit, which would hide the BM25 paths.
+    return RetrievalConfig(
+        "t", dense=False, bm25=True, split_bm25=True, exact_match=True, typed_citations=typed
+    )
+
+
+def test_rule_137_does_not_return_a_rate_row(typed_retriever) -> None:
+    question = "What does rule 137 of the CGST Rules provide?"
+    on = date(2021, 1, 1)
+    # Untyped, the rate index ranks the schedule (S. No. 137, "rules") and it reaches the result.
+    untyped = typed_retriever.search(question, _lexical(False), on=on)
+    assert "CTR/0-0000/schI@v1" in untyped
+    typed = typed_retriever.search(question, _lexical(True), on=on)
+    assert typed[0] == "CGST/r137@v1"
+    assert not any(record_id.startswith("CTR/") for record_id in typed)
+    assert typed_retriever.exact_hits(question, on=on, typed=True) == ["CGST/r137@v1"]
+
+
+def test_rate_question_still_finds_its_row(typed_retriever) -> None:
+    on = date(2021, 1, 1)
+    # No citation: both BM25 indexes are consulted.
+    plain = typed_retriever.search("central tax rate on gamma goods", _lexical(True), on=on)
+    assert plain[0] == "CTR/0-0000/schI@v1"
+    # A notification citation pins the schedule and skips the Act/Rules index.
+    cited = "rate on gamma goods under Notification No. 0/0000-Central Tax (Rate)"
+    assert typed_retriever.exact_hits(cited, on=on, typed=True) == ["CTR/0-0000/schI@v1"]
+    assert typed_retriever.search(cited, _lexical(True), on=on) == ["CTR/0-0000/schI@v1"]

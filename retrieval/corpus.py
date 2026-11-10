@@ -12,7 +12,8 @@ Sources:
   not in the core build. Act records in this file come from the synthetic segmentation
   fixture (data/raw/cgst_sample_fixture.txt) and are never indexed.
 - Rate notifications 1/2017 and 9/2025 (goods schedules) and 2/2017 and 10/2025 (goods
-  exemptions), as issued. 9/2025 and 10/2025 supersede 1/2017 and 2/2017 from 2025-09-22.
+  exemptions), as issued (RateNotification.applied_amendments is empty). 9/2025 and
+  10/2025 supersede 1/2017 and 2/2017 from 2025-09-22.
 """
 
 from __future__ import annotations
@@ -58,6 +59,10 @@ class RateNotification:
     effective_from: date
     effective_to: date | None
     schedule_rates: dict[str, str]  # roman numeral -> rate in the notification's own words
+    # Amendments ("19/2025") whose changes are applied to this notification's index rows. None
+    # are yet: rows are the notification as issued. generation.horizon ends the rates horizon
+    # the day before the first unapplied amendment to a notification still in force.
+    applied_amendments: tuple[str, ...] = ()
 
 
 # Commencement and supersession dates are those stated in the notifications themselves.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import date
 
 import httpx
@@ -12,7 +13,15 @@ from eval.tune_abstention import choose
 from generation.answer import Answerer
 from generation.config import TUNED_ABSTAIN_THRESHOLD, GenerationConfig
 from generation.context import Chunk, Context
-from generation.horizon import AMENDMENTS_FILE, RAW, knowledge_horizons, rate_notification_dates
+from generation.horizon import (
+    AMENDMENTS_FILE,
+    RAW,
+    knowledge_horizons,
+    rate_amendments,
+    rate_horizon_details,
+    rate_notification_dates,
+    rates_horizon,
+)
 from generation.llm import LLMClient, LLMError
 from generation.prompts import chunk_label, generator_prompt
 from generation.render import DISCLAIMER, render_abstention, render_answer
@@ -386,8 +395,39 @@ def test_horizons_come_from_the_sources() -> None:
     issued, commencement = rate_notification_dates(RAW / "ctr-01-2026_2026-04-30.pdf")
     assert (issued, commencement) == (date(2026, 4, 30), date(2026, 5, 1))
     horizons = knowledge_horizons()
-    assert horizons["notification"] >= commencement
+    assert horizons["notification"] == rate_horizon_details()[0]
     assert horizons["act"] == act_source_horizon()
     with AMENDMENTS_FILE.open(encoding="utf-8") as handle:
         issue_dates = [json.loads(line)["issue_date"] for line in handle if line.strip()]
     assert horizons["rule"].isoformat() == max(issue_dates)
+
+
+def test_rates_horizon_ends_before_the_first_unapplied_amendment(caplog) -> None:
+    # ctr-19-2025_2025-12-31.pdf amends No. 9/2025- Central Tax (Rate) and "shall come into
+    # force on the 1st day of February, 2026"; ctr-01-2026_2026-04-30.pdf amends it "from 1st
+    # May, 2026". Neither is applied to the index rows (RATE_NOTIFICATIONS).
+    amendments, _ = rate_amendments()
+    by_number = {a.number: a for a in amendments}
+    assert (by_number["19/2025"].amends, by_number["19/2025"].effective) == (
+        (9, 2025),
+        date(2026, 2, 1),
+    )
+    assert (by_number["01/2026"].amends, by_number["01/2026"].effective) == (
+        (9, 2025),
+        date(2026, 5, 1),
+    )
+    with caplog.at_level("WARNING", logger="generation.horizon"):
+        horizon = rates_horizon()
+    assert horizon == date(2026, 1, 31)
+    assert "amendments 19/2025, 01/2026 not applied to index" in caplog.text
+    # Amendments to a superseded schedule (01/2025 amends 1/2017) do not move the horizon.
+    assert by_number["01/2025"].amends == (1, 2017)
+    # Once an amendment is applied to the rows, the horizon moves to the next one.
+    applied = [
+        replace(n, applied_amendments=("19/2025",)) if n.number == "9/2025" else n
+        for n in RATE_NOTIFICATIONS
+    ]
+    assert rate_horizon_details(notifications=applied) == (
+        date(2026, 4, 30),
+        "amendments 01/2026 not applied to index",
+    )

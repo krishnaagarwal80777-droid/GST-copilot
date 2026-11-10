@@ -26,6 +26,11 @@ class RetrievalConfig:
     # Separate BM25 indexes for Act/Rules rows and rate-schedule rows (structured index only);
     # each index adds its own ranking to the fusion with weight w_bm25.
     split_bm25: bool = False
+    # A citation matches only records of its doc type ("rule N" -> rule, "section N" -> act,
+    # "notification N/YYYY" -> notification): exact match pins only rows of that type, and with
+    # split_bm25 a query that cites only some doc types skips the BM25 index of the others, so
+    # "rule 137" cannot pull a rate schedule in through S. No. 137.
+    typed_citations: bool = False
     rerank: bool = False
     rerank_top: int = 20
     candidates: int = 50
@@ -42,10 +47,11 @@ def with_fusion(config: RetrievalConfig, fusion: dict) -> RetrievalConfig:
 
 
 def ablation_configs(
-    fusion: dict | None = None, *, split_bm25: bool = True
+    fusion: dict | None = None, *, split_bm25: bool = True, typed_citations: bool = True
 ) -> tuple[RetrievalConfig, ...]:
     """Cumulative ablation ladder reported by `make eval-retrieval`. ``split_bm25`` applies to
-    every rung that uses BM25 (`python -m eval.retrieval --no-split-bm25` turns it off)."""
+    every rung that uses BM25 (`python -m eval.retrieval --no-split-bm25` turns it off), and
+    ``typed_citations`` to every rung with exact match (`--no-typed-citations`)."""
     fused = TUNED_FUSION if fusion is None else fusion
     ladder = (
         RetrievalConfig("naive", index="naive"),
@@ -63,7 +69,14 @@ def ablation_configs(
             fused,
         ),
     )
-    return tuple(replace(config, split_bm25=split_bm25 and config.bm25) for config in ladder)
+    return tuple(
+        replace(
+            config,
+            split_bm25=split_bm25 and config.bm25,
+            typed_citations=typed_citations and config.exact_match,
+        )
+        for config in ladder
+    )
 
 
 CONFIGS: tuple[RetrievalConfig, ...] = ablation_configs()

@@ -9,6 +9,10 @@ With ``split_bm25`` the structured index has two BM25 indexes, one over Act and 
 one over rate-schedule rows, and each contributes its own ranking to the fusion. In a single
 index the 2,723 short schedule rows set the average document length and the term statistics
 for the 1,054 long Act and Rules rows.
+
+With ``typed_citations`` a citation matches only records of its doc type: exact match pins only
+rows of the cited type, and a query citing only rules/sections (or only notifications) skips
+the BM25 index of the other doc types.
 """
 
 from __future__ import annotations
@@ -20,7 +24,7 @@ from retrieval.bm25 import Bm25Index
 from retrieval.config import RetrievalConfig
 from retrieval.corpus import build_rows
 from retrieval.embed import Embedder
-from retrieval.exact_match import exact_paths, parse_citations
+from retrieval.exact_match import citation_doc_type, cited_doc_types, exact_paths, parse_citations
 from retrieval.fusion import dense_first, weighted_rrf
 from retrieval.naive import naive_rows
 from retrieval.store import VectorStore, row_dict
@@ -59,6 +63,8 @@ class Retriever:
         self._tables: dict[str, list[dict[str, Any]]] = {}
         # (table, split) -> BM25 indexes, each with the table positions of its rows.
         self._bm25: dict[tuple[str, bool], list[tuple[list[int], Bm25Index]]] = {}
+        # (table, split) -> doc types of the rows in each BM25 index, in the same order.
+        self._bm25_types: dict[tuple[str, bool], list[set[str]]] = {}
 
     def _table(self, name: str) -> list[dict[str, Any]]:
         if name not in self._tables:
@@ -77,8 +83,12 @@ class Retriever:
                 parts = [[i for i in everything if rows[i]["act_id"] != RATE_ACT_ID], rates]
             else:
                 parts = [everything]
+            parts = [part for part in parts if part]
             self._bm25[(name, split)] = [
-                (part, Bm25Index([rows[i]["text"] for i in part])) for part in parts if part
+                (part, Bm25Index([rows[i]["text"] for i in part])) for part in parts
+            ]
+            self._bm25_types[(name, split)] = [
+                {rows[i]["doc_type"] for i in part} for part in parts
             ]
         return self._bm25[(name, split)]
 
@@ -87,8 +97,13 @@ class Retriever:
     ) -> list[list[str]]:
         """Record ids ranked by each BM25 index of the table (one ranking per index)."""
         rows = self._table(name)
+        indexes = self._bm25_indexes(name, config.split_bm25)
+        types = self._bm25_types[(name, config.split_bm25 and name == PROVISIONS_TABLE)]
+        cited = cited_doc_types(query) if config.typed_citations and len(indexes) > 1 else set()
         rankings: list[list[str]] = []
-        for positions, index in self._bm25_indexes(name, config.split_bm25):
+        for (positions, index), doc_types in zip(indexes, types, strict=True):
+            if cited and not cited & doc_types:
+                continue
             part_mask = None if mask is None else [mask[i] for i in positions]
             order = index.rank(query, mask=part_mask, k=config.candidates)
             rankings.append(_dedupe([rows[positions[i]]["record_id"] for i in order]))
@@ -145,7 +160,7 @@ class Retriever:
             fused = head + fused[config.rerank_top :]
 
         if config.exact_match and config.index == "structured":
-            pinned = self._exact(query, rows, mask)
+            pinned = self._exact(query, rows, mask, typed=config.typed_citations)
             fused = pinned + [record_id for record_id in fused if record_id not in pinned]
         return fused[:k]
 
@@ -158,12 +173,14 @@ class Retriever:
         wanted = set(record_ids)
         return [row for row in rows if row["record_id"] in wanted and _valid(row, on, known_by)]
 
-    def exact_hits(self, query: str, *, on: date, known_by: date | None = None) -> list[str]:
+    def exact_hits(
+        self, query: str, *, on: date, known_by: date | None = None, typed: bool = False
+    ) -> list[str]:
         """Record ids the exact-match path pins for this query (servable, date-valid)."""
         known_by = known_by or date.today()
         rows = self._table(PROVISIONS_TABLE)
         mask = [_valid(row, on, known_by) for row in rows]
-        return self._exact(query, rows, mask)
+        return self._exact(query, rows, mask, typed=typed)
 
     def _rerank(
         self, query: str, record_ids: list[str], rows: list[dict[str, Any]], mask
@@ -182,24 +199,31 @@ class Retriever:
         return sorted(record_ids, key=lambda rid: -best.get(rid, float("-inf")))
 
     @staticmethod
-    def _exact(query: str, rows: list[dict[str, Any]], mask: list[bool] | None) -> list[str]:
-        """Rows for every cited provision, citation order, newest version first per path."""
+    def _exact(
+        query: str, rows: list[dict[str, Any]], mask: list[bool] | None, *, typed: bool = False
+    ) -> list[str]:
+        """Rows for every cited provision, citation order, newest version first per path;
+        ``typed``: only rows of the citation's doc type."""
         # Exact-match hits are citations, so only servable rows can be pinned.
         candidates = [
             row
             for index, row in enumerate(rows)
             if (mask is None or mask[index]) and row.get("servable", "1") == "1"
         ]
-        indexed_paths = sorted({row["path"] for row in candidates})
         wants_proviso = "proviso" in query.lower()
         pinned: list[str] = []
         for cited in parse_citations(query):
-            paths = exact_paths(cited, indexed_paths)
+            if typed:
+                doc_type = citation_doc_type(cited)
+                of_type = [row for row in candidates if row["doc_type"] == doc_type]
+            else:
+                of_type = candidates
+            paths = exact_paths(cited, sorted({row["path"] for row in of_type}))
             if wants_proviso:
                 paths = sorted(paths, key=lambda path: "/proviso" not in path)
             for path in paths:
                 versions = sorted(
-                    (row for row in candidates if row["path"] == path),
+                    (row for row in of_type if row["path"] == path),
                     key=lambda row: row["effective_from"],
                     reverse=True,
                 )

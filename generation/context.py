@@ -52,12 +52,17 @@ def build_context(
     if retriever.reranker is None:
         raise ValueError("generation context needs the cross-encoder (Retriever(reranker=...))")
     rconfig = retrieval_config(config.retrieval)
-    rconfig = replace(rconfig, split_bm25=config.split_bm25 and rconfig.bm25)
+    rconfig = replace(
+        rconfig,
+        split_bm25=config.split_bm25 and rconfig.bm25,
+        typed_citations=config.typed_citations and rconfig.exact_match,
+    )
     # The date filter is not optional here: the generator only ever sees valid versions.
     record_ids = retriever.search(
         question, rconfig, on=on, known_by=known_by, k=config.candidate_records
     )
-    pinned = set(retriever.exact_hits(question, on=on, known_by=known_by)) & set(record_ids)
+    hits = retriever.exact_hits(question, on=on, known_by=known_by, typed=rconfig.typed_citations)
+    pinned = set(hits) & set(record_ids)
     rows = [
         row
         for row in retriever.rows_for(record_ids, on=on, known_by=known_by)
