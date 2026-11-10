@@ -5,3 +5,6 @@ generate variants few_shot + provision_first (no judge),2026-11-10T12:50:05+00:0
 "baseline latency timing pass (uncached, answers discarded)",2026-11-10T13:21:40+00:00,2026-11-10T13:31:19+00:00,0,0,0,0.0,0,0,0
 judge pv-baseline with v2,2026-11-10T13:31:30+00:00,2026-11-10T13:31:32+00:00,0,0,0,0.0,0,0,0
 judge pv-provision_first with v2,2026-11-10T13:31:32+00:00,2026-11-10T13:35:28+00:00,69,103705,17868,0.029,0,0,0
+test final generation + judge v2,2026-11-10T13:40:50+00:00,2026-11-10T13:53:18+00:00,61,70405,13502,0.0207,17,64151,8039
+test v2 re-judged with judge v2,2026-11-10T13:53:20+00:00,2026-11-10T13:54:55+00:00,22,42488,6615,0.0113,0,0,0
+shipped config replay (no LLM calls),2026-11-10T13:59:02+00:00,2026-11-10T13:59:05+00:00,0,0,0,0.0,0,0,0

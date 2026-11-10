@@ -671,3 +671,16 @@ timestamp,git_hash,split,source,config,index_size,index_records,category,n,recal
 2026-11-10T11:01:56+00:00,67a20d7-dirty,dev,templated,+reranker,3777,1069,overall,64,0.9688,1.0,0.9583,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
 2026-11-10T11:01:56+00:00,67a20d7-dirty,dev,templated,+reranker,3777,1069,date_sensitive,46,0.9565,1.0,0.942,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
 2026-11-10T11:01:56+00:00,67a20d7-dirty,dev,templated,+reranker,3777,1069,numeric,18,1.0,1.0,1.0,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,all,+reranker,3777,1069,overall,62,0.9758,0.9758,0.9839,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,all,+reranker,3777,1069,date_sensitive,38,1.0,1.0,1.0,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,all,+reranker,3777,1069,direct_lookup,4,1.0,1.0,1.0,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,all,+reranker,3777,1069,interpretive,4,0.625,0.625,0.75,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,all,+reranker,3777,1069,numeric,16,1.0,1.0,1.0,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,hand,+reranker,3777,1069,overall,18,0.9167,0.9167,0.9444,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,hand,+reranker,3777,1069,date_sensitive,6,1.0,1.0,1.0,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,hand,+reranker,3777,1069,direct_lookup,4,1.0,1.0,1.0,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,hand,+reranker,3777,1069,interpretive,4,0.625,0.625,0.75,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,hand,+reranker,3777,1069,numeric,4,1.0,1.0,1.0,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,templated,+reranker,3777,1069,overall,44,1.0,1.0,1.0,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,templated,+reranker,3777,1069,date_sensitive,32,1.0,1.0,1.0,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
+2026-11-10T13:54:56+00:00,2dc7c37-dirty,test,templated,+reranker,3777,1069,numeric,12,1.0,1.0,1.0,"rrf(k=10,w_dense=1.0,w_bm25=1.0,bm25=act_rules+rates,typed_citations)",pgvector,version
