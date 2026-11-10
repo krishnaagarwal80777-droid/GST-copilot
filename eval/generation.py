@@ -314,6 +314,8 @@ def run(
     limit: int | None = None,
     source: str | None = None,
     rerun_test: bool = False,
+    tag: str = "",
+    note: str = "",
 ) -> None:
     from generation.answer import Answerer
     from generation.llm import QuotaExhausted, generator_client, judge_client
@@ -322,7 +324,7 @@ def run(
     from retrieval.rerank import Reranker
     from retrieval.store import open_store
 
-    items_file = RESULTS_DIR / f"generation_{split}_items.jsonl"
+    items_file = items_path(split, tag)
     if split == "test" and not dry_run and items_file.exists() and not rerun_test:
         raise SystemExit(
             f"{items_file.relative_to(ROOT)} exists: the test split has been run. "
@@ -397,27 +399,46 @@ def run(
         "abstain_threshold": config.abstain_threshold if config.gate else "",
     }
     rows = summarize(records, meta)
+    for row in rows:
+        row["note"] = note
     if limit is None and source is None:
         with items_file.open("w", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps({"meta": meta, "config": asdict(config)}) + "\n")
             for record in records:
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-        write_summary(rows)
-        print(
-            f"wrote {items_file.relative_to(ROOT)}; appended {len(rows)} rows to "
-            f"{SUMMARY_FILE.relative_to(ROOT)}"
-        )
+        print(f"wrote {items_file.relative_to(ROOT)}")
+        _append_unless_judge_errors(rows, split, tag)
     else:
         print("partial run (--limit/--source): results not written")
     print_summary(rows)
 
 
-def from_items(split: str, *, rejudge: bool = False) -> None:
+def _append_unless_judge_errors(rows: list[dict[str, Any]], split: str, tag: str) -> None:
+    """Summary rows go to generation.csv only when every judge call succeeded; otherwise the
+    per-item file is kept and the errored items are re-judged later (cached verdicts are free)."""
+    overall = next(r for r in rows if (r["source"], r["category"]) == ("all", "overall"))
+    if overall["judge_error"]:
+        flags = f"--split {split}" + (f" --tag {tag}" if tag else "")
+        print(
+            f"{overall['judge_error']} judge calls failed: no rows appended. When the judge "
+            f"quota allows, run `python -m eval.generation {flags} --from-items --rejudge`."
+        )
+        return
+    write_summary(rows)
+    print(f"appended {len(rows)} rows to {SUMMARY_FILE.relative_to(ROOT)}")
+
+
+def items_path(split: str, tag: str = "") -> Path:
+    """Per-item results file; a tagged run (e.g. "v2") gets its own file, so earlier runs stay."""
+    return RESULTS_DIR / f"generation_{split}{'_' + tag if tag else ''}_items.jsonl"
+
+
+def from_items(split: str, *, rejudge: bool = False, tag: str = "") -> None:
     """Recompute (and optionally re-judge) a split from its per-item jsonl; append rows."""
     from eval.harness import load_eval_items
     from generation.llm import judge_client
 
-    items_file = RESULTS_DIR / f"generation_{split}_items.jsonl"
+    items_file = items_path(split, tag)
     lines = items_file.read_text(encoding="utf-8").splitlines()
     header, records = json.loads(lines[0]), [json.loads(line) for line in lines[1:]]
     items = {item_key(item): item for item in load_eval_items()}
@@ -453,8 +474,8 @@ def from_items(split: str, *, rejudge: bool = False) -> None:
             for record in records:
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
         print(f"re-judged {split}: {changed} verdicts changed")
-    write_summary(rows)
-    print(f"{note}; appended {len(rows)} rows to {SUMMARY_FILE.relative_to(ROOT)}")
+    print(note)
+    _append_unless_judge_errors(rows, split, tag)
     print_summary(rows)
 
 
@@ -475,9 +496,11 @@ def main() -> None:
         "--from-items", action="store_true", help="recompute rows from the per-item jsonl"
     )
     parser.add_argument("--rejudge", action="store_true", help="with --from-items: re-run judge")
+    parser.add_argument("--tag", default="", help='run label, e.g. "v2": own items file')
+    parser.add_argument("--note", default="", help="note stored on the appended summary rows")
     args = parser.parse_args()
     if args.from_items:
-        from_items(args.split, rejudge=args.rejudge)
+        from_items(args.split, rejudge=args.rejudge, tag=args.tag)
         return
     config = GenerationConfig()
     if args.no_gate:
@@ -491,6 +514,8 @@ def main() -> None:
         limit=args.limit,
         source=args.source,
         rerun_test=args.rerun_test,
+        tag=args.tag,
+        note=args.note,
     )
 
 

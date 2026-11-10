@@ -1,4 +1,8 @@
-"""Row-level parse of the goods rate schedules (Notifications 1/2017 and 9/2025-CT(Rate)).
+"""Row-level parse of the goods rate notifications (retrieval.corpus.RATE_NOTIFICATIONS).
+
+Rate notifications (1/2017, 9/2025-CT(Rate)) have one schedule per rate ("Schedule II - 6%");
+exemption notifications (2/2017, 10/2025) have a single "Schedule" of goods exempt from the
+whole of the central tax, parsed as schedule "" with rate "nil".
 
 Each row is (schedule, S. No., column (2) tariff entry, column (3) description, rate). Text
 comes from ``pdftotext -raw`` (reading order), not ``-layout``: in 9/2025 the layout mode
@@ -17,6 +21,8 @@ from dataclasses import dataclass
 from retrieval.corpus import RATE_NOTIFICATIONS, RAW, RateNotification
 
 _SCHEDULE = re.compile(r"^Schedule\s*[-–]?\s*(?P<num>[IVX]+)\s*[–-]\s*[\d.]+\s*%")
+_EXEMPTION_SCHEDULE = re.compile(r"^(?:Schedule|SCHEDULE)$")
+EXEMPT = "nil"
 _ROW = re.compile(r"^(?P<sno>\d+)\.(?:\s+(?P<rest>.*))?$")
 # Column (2): tariff codes ("0101 21 00, 0101 29", "01012100,"), "(Except 050790)", "Any Chapter".
 _TARIFF = re.compile(
@@ -39,23 +45,25 @@ _HEADER_WORDS = {
 # Lists appended to Schedule I, and the notification-level explanation after the last schedule
 # (row-level "Explanation.- For the purposes of this entry" stays part of its row).
 _STOP = re.compile(
-    r"^(?:List\s+\d|\(B\)\s|(?i:Explanation\.?\s*[-–—:]*\s*For the purposes? of this notification))"
+    r"^(?:List\s+\d|\(B\)\s|"
+    r"(?i:Explanation\.?\s*[-–—:]*\s*For the purposes? of this (?:notification|Schedule)))"
 )
 
 
 @dataclass(frozen=True)
 class RateRow:
     notification: str  # "9/2025"
-    schedule: str  # roman numeral
+    schedule: str  # roman numeral; "" for the single schedule of an exemption notification
     s_no: int
     tariff: str  # column (2) as printed, whitespace-normalised
     description: str  # column (3), whitespace-normalised
-    rate: str  # central tax rate, in the notification's own words ("2.5")
+    rate: str  # central tax rate, in the notification's own words ("2.5"); "nil" if exempt
 
     @property
     def path(self) -> str:
         """Index path of the schedule record that contains this row (retrieval.corpus)."""
-        return f"CTR/{self.notification.replace('/', '-')}/sch{self.schedule}"
+        base = f"CTR/{self.notification.replace('/', '-')}"
+        return f"{base}/sch{self.schedule}" if self.schedule else base
 
     @property
     def tariff_key(self) -> str:
@@ -87,8 +95,6 @@ def _is_noise(line: str) -> bool:
 
 
 def parse_rows(notification: RateNotification, text: str | None = None) -> list[RateRow]:
-    if not notification.schedule_rates:
-        return []
     text = raw_text(notification.filename) if text is None else text
     rows: list[RateRow] = []
     schedule: str | None = None
@@ -104,10 +110,15 @@ def parse_rows(notification: RateNotification, text: str | None = None) -> list[
 
     for raw in text.splitlines():
         line = " ".join(raw.split())
-        header = _SCHEDULE.match(line)
-        if header and header.group("num") in notification.schedule_rates:
-            flush()
-            schedule, expected, stopped = header.group("num"), 1, False
+        if notification.schedule_rates:
+            header = _SCHEDULE.match(line)
+            number = header.group("num") if header else None
+            if number in notification.schedule_rates:
+                flush()
+                schedule, expected, stopped = number, 1, False
+                continue
+        elif schedule is None and _EXEMPTION_SCHEDULE.match(line):
+            schedule = ""
             continue
         if schedule is None or stopped or _is_noise(line):
             continue
@@ -137,9 +148,9 @@ def _finish(notification: RateNotification, current: dict) -> RateRow:
         s_no=current["s_no"],
         tariff=tariff,
         description=description,
-        rate=notification.schedule_rates[current["schedule"]],
+        rate=notification.schedule_rates.get(current["schedule"], EXEMPT),
     )
 
 
 def all_rows() -> dict[str, list[RateRow]]:
-    return {n.number: parse_rows(n) for n in RATE_NOTIFICATIONS if n.schedule_rates}
+    return {n.number: parse_rows(n) for n in RATE_NOTIFICATIONS}

@@ -2,8 +2,8 @@
 
 Every row carries the bitemporal fields (effective_from, effective_to, in_force_since) and
 act_id, path, node_type, doc_type, so the store can filter by reference date. A row's
-``record_id`` is the provision version (``<path>@v<N>``); long texts (rate schedules) are split
-into several rows sharing one record_id, and ranking deduplicates by record_id.
+``record_id`` is the provision version (``<path>@v<N>``); a rate schedule is one record with
+one row per schedule entry, and ranking deduplicates by record_id.
 
 Sources:
 - data/processed/core_provisions.jsonl: hand-verified Act and Rule versions (authoritative
@@ -195,67 +195,45 @@ def notification_text(filename: str) -> str:
     return result.stdout
 
 
-def _schedule_sections(text: str) -> list[tuple[str, str]]:
-    """Split a rate notification into (schedule numeral, text) by its "Schedule X – N%" headers."""
-    headers = list(re.finditer(r"Schedule\s*[-–]?\s*(?P<num>[IVX]+)\s*[–-]\s*[\d.]+\s*%", text))
-    sections = []
-    for index, header in enumerate(headers):
-        end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
-        sections.append((header.group("num"), text[header.start() : end]))
-    return sections
-
-
-def _blocks(text: str, lines_per_block: int = 30, overlap: int = 5) -> list[str]:
-    lines = [line for line in text.splitlines() if line.strip()]
-    step = lines_per_block - overlap
-    return [
-        "\n".join(lines[start : start + lines_per_block])
-        for start in range(0, max(len(lines) - overlap, 1), step)
-    ]
-
-
 def rate_rows() -> list[IndexRow]:
+    """One index row per schedule entry (S. No., tariff, description and rate together), from
+    the ``pdftotext -raw`` row parse in ingest.rate_schedule. Rows of one schedule share the
+    schedule's record_id (``CTR/9-2025/schII@v1``); the row id adds the S. No. (``#424``)."""
+    from ingest.rate_schedule import parse_rows
+
     rows: list[IndexRow] = []
     for notification in RATE_NOTIFICATIONS:
-        text = notification_text(notification.filename)
         label = f"Notification No. {notification.number}-Central Tax (Rate)"
-        slug = notification.number.replace("/", "-")
-        if notification.schedule_rates:
-            sections = _schedule_sections(text)
-            found = {num for num, _ in sections}
-            if found != set(notification.schedule_rates):
-                raise ValueError(
-                    f"{label}: schedules {sorted(found)} in text, expected "
-                    f"{sorted(notification.schedule_rates)}"
+        parsed = parse_rows(notification)
+        if not parsed:
+            raise ValueError(f"{label}: no schedule rows parsed")
+        found = {row.schedule for row in parsed}
+        expected = set(notification.schedule_rates) or {""}
+        if found != expected:
+            raise ValueError(
+                f"{label}: schedules {sorted(found)} parsed, expected {sorted(expected)}"
+            )
+        for row in parsed:
+            if row.schedule:
+                prefix = f"{label}, Schedule {row.schedule} - central tax rate {row.rate} per cent"
+            else:
+                prefix = f"{label}, exemption schedule (nil central tax)"
+            tariff = f" {row.tariff}" if row.tariff else ""
+            record_id = f"{row.path}@v1"
+            rows.append(
+                IndexRow(
+                    id=f"{record_id}#{row.s_no}",
+                    record_id=record_id,
+                    path=row.path,
+                    act_id="CTR",
+                    doc_type="notification",
+                    node_type="paragraph",
+                    effective_from=notification.effective_from,
+                    effective_to=notification.effective_to,
+                    in_force_since=notification.effective_from,
+                    text=f"{prefix}: S. No. {row.s_no}.{tariff} {row.description}",
                 )
-            parts = [
-                (
-                    f"CTR/{slug}/sch{num}",
-                    f"{label}, Schedule {num} - central tax rate "
-                    f"{notification.schedule_rates[num]} per cent",
-                    body,
-                )
-                for num, body in sections
-            ]
-        else:
-            parts = [(f"CTR/{slug}", f"{label}, exemption schedule (nil central tax)", text)]
-        for path, prefix, body in parts:
-            record_id = f"{path}@v1"
-            for index, block in enumerate(_blocks(body)):
-                rows.append(
-                    IndexRow(
-                        id=f"{record_id}#{index}",
-                        record_id=record_id,
-                        path=path,
-                        act_id="CTR",
-                        doc_type="notification",
-                        node_type="paragraph",
-                        effective_from=notification.effective_from,
-                        effective_to=notification.effective_to,
-                        in_force_since=notification.effective_from,
-                        text=f"{prefix}: {_flat(block)}",
-                    )
-                )
+            )
     return rows
 
 
