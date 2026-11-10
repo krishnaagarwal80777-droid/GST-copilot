@@ -602,3 +602,34 @@ def test_prompt_variant_choice_follows_the_adoption_rule() -> None:
     # Tie on correct rate: citation recall, then tokens.
     tie = [base, row("a", 0.70, 0.6, 0.8, recall=0.9), row("b", 0.70, 0.6, 0.8, tokens=500.0)]
     assert choose(tie)[:2] == ("b", "b")
+
+
+def test_prompt_variant_prescreen_drops_and_picks_one_challenger() -> None:
+    from eval.prompt_variants import prescreen
+
+    def row(variant, recall, fp=1, tokens=1000.0, precision=1.0, failures=0):
+        return {
+            "variant": variant,
+            "citation_recall": recall,
+            "citation_precision": precision,
+            "abstain_fp": fp,
+            "format_failures": failures,
+            "mean_tokens": tokens,
+        }
+
+    rows, challenger = prescreen(
+        [
+            row("baseline", 0.97),
+            row("lower_recall", 0.95),
+            row("more_fp", 0.98, fp=2),
+            row("dear_no_gain", 0.97, tokens=1400.0),
+            row("dear_with_gain", 0.99, tokens=1400.0),
+            row("equal", 0.97, tokens=900.0),
+        ]
+    )
+    verdict = {r["variant"]: r["prescreen"] for r in rows}
+    assert verdict["lower_recall"].startswith("dropped: citation recall")
+    assert verdict["more_fp"].startswith("dropped: more abstention FP")
+    assert verdict["dear_no_gain"].startswith("dropped: >30% more tokens")
+    assert verdict["equal"] == "survives"
+    assert challenger == "dear_with_gain"

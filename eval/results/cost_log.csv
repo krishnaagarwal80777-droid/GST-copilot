@@ -1,0 +1,3 @@
+step,since,until,groq_calls,groq_input_tokens,groq_output_tokens,groq_cost_usd,gemini_calls,gemini_input_tokens,gemini_output_tokens
+"audit re-judge, judge v2 (34 rows)",2026-11-10T11:45:00+00:00,2026-11-10T12:25:00+00:00,34,69652,10725,0.0185,81,237002,33044
+dev v4 judged with v2,2026-11-10T12:45:47+00:00,2026-11-10T12:49:55+00:00,70,95123,15718,0.0261,0,0,0
