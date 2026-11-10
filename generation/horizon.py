@@ -73,6 +73,9 @@ def _read_rate_notification(path: Path) -> tuple[date, date | None, str]:
     )
 
     text = read_pdf_text(path)
+    ocr = path.with_suffix(".ocr.txt")  # OCR of a PDF with no text layer (data/raw/manifest.json)
+    if not text.strip() and ocr.is_file():
+        text = ocr.read_text(encoding="utf-8")
     issued = _extract_issue_date(text, _fallback_issue_date_from_filename(path.name))
     return issued, _extract_notification_commencement_date(text, issued), text
 

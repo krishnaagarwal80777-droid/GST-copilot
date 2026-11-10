@@ -265,7 +265,10 @@
     "downloaded_at": "2026-10-08T10:45:27.786574+00:00",
     "sha256": "79c8a731c7213cee10db50bda824f30512992aff1597721d9f1a792bc4e83b23",
     "wrapper_sha256": "2d52c59712c26975d62947aea2d96ccb29fd806ee2afd693098bb6e4127d9c86",
-    "no_text_layer": true
+    "no_text_layer": true,
+    "ocr_text": "ctr-18-2025_2025-10-24.ocr.txt",
+    "ocr_sha256": "51bdb684b1ae0bd65c80eac78420ec271b03fd5eaa56e9005100f6d580bddaa1",
+    "ocr_engine": "tesseract v5.4.0.20240606 -l eng, page 1 rendered at 4x (pypdfium2 4.30.0), unedited"
   },
   {
     "name": "19/2025-Central Tax (Rate) (2025-12-31): Amends 9/2025-CT(Rate): tobacco products",

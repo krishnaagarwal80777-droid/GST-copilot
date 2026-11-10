@@ -406,8 +406,13 @@ def test_rates_horizon_ends_before_the_first_unapplied_amendment(caplog) -> None
     # ctr-19-2025_2025-12-31.pdf amends No. 9/2025- Central Tax (Rate) and "shall come into
     # force on the 1st day of February, 2026"; ctr-01-2026_2026-04-30.pdf amends it "from 1st
     # May, 2026". Neither is applied to the index rows (RATE_NOTIFICATIONS).
-    amendments, _ = rate_amendments()
+    amendments, unreadable = rate_amendments()
     by_number = {a.number: a for a in amendments}
+    # ctr-18-2025 has no text layer; its OCR (data/raw/manifest.json) reads "makes the following
+    # further amendments in the notification ..., No. 26/2018-Central Tax (Rate)", which is not
+    # an indexed schedule, so it does not move the horizon.
+    assert not unreadable
+    assert by_number["18/2025"].amends == (26, 2018)
     assert (by_number["19/2025"].amends, by_number["19/2025"].effective) == (
         (9, 2025),
         date(2026, 2, 1),
