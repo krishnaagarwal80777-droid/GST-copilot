@@ -26,3 +26,5 @@ class GenerationConfig:
     gate: bool = True  # abstain before generation when confidence < abstain_threshold
     abstain_threshold: float = TUNED_ABSTAIN_THRESHOLD
     verify_citations: bool = True  # drop citation ids not in context/servable, then claims
+    # Generator prompt variant (generation.prompts.PROMPT_VARIANTS).
+    prompt_variant: str = "baseline"

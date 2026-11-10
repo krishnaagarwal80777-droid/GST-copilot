@@ -74,6 +74,9 @@ class LLMResponse:
     model: str  # the model that answered (primary or fallback)
     cached: bool
     usage: dict[str, Any] = field(default_factory=dict)
+    # Seconds the provider call took when it was made (also when served from the cache);
+    # None for cache entries written before latency was recorded.
+    latency_s: float | None = None
 
     def json(self) -> Any:
         return json.loads(self.text)
@@ -133,6 +136,7 @@ class LLMClient:
             )
         errors: list[str] = []
         for model in [self.model] + ([self.fallback] if self.fallback else []):
+            started = time.perf_counter()
             try:
                 text, usage = self._call(model, system, prompt, schema)
             except QuotaExhausted:
@@ -140,7 +144,13 @@ class LLMClient:
             except LLMError as error:
                 errors.append(f"{model}: {error}")
                 continue
-            response = {"text": text, "provider": self.provider, "model": model, "usage": usage}
+            response = {
+                "text": text,
+                "provider": self.provider,
+                "model": model,
+                "usage": usage,
+                "latency_s": round(time.perf_counter() - started, 3),
+            }
             self._cache_write(key, response)
             return LLMResponse(**response, cached=False)
         raise LLMError("; ".join(errors))

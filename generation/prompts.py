@@ -116,3 +116,147 @@ def judge_prompt(
         )
     parts.append(f"Answer to grade:\n{answer}")
     return "\n\n".join(parts)
+
+
+# --- Generator prompt variants (GenerationConfig.prompt_variant) ----------------------------
+# baseline:         GENERATOR_SYSTEM as is.
+# strict_citations: every claim cites, and quotes the deciding words of the cited provision.
+# few_shot:         two worked examples. Their provisions and goods are in no eval item (gold
+#                   paths of every item, dev, test or pending; question and gold-answer words);
+#                   chunk text is copied from the index rows.
+# provision_first:  a "governing" object (governing chunk ID, its in-force dates, whether the
+#                   reference date falls inside them) is filled before the claims.
+PROMPT_VARIANTS = ("baseline", "strict_citations", "few_shot", "provision_first")
+
+STRICT_CITATION_RULES = """\
+- Every claim must carry at least one citation ID; write no statement without one.
+- In every claim, quote inside double quotes the exact words of the cited chunk that decide \
+it, copied verbatim (for example the rate, the condition or the exception as worded).
+"""
+
+PROVISION_FIRST_RULES = """\
+- Before the claims, fill "governing": "citation_id" is the ID of the context chunk that \
+governs the question, "in_force" is the period that chunk states it is in force, and \
+"covers_ref_date" says whether the reference date falls inside that period. Then answer from \
+that chunk first.
+"""
+
+
+def _example_chunk(chunk_id: str, doc_type: str, effective_from: str, text: str) -> Chunk:
+    path = chunk_id.split("@", 1)[0]
+    return Chunk(
+        chunk_id,
+        chunk_id.split("#")[0],
+        path,
+        doc_type,
+        effective_from,
+        "9999-12-31",
+        text,
+        0.0,
+        False,
+    )
+
+
+_FEW_SHOT = (
+    (
+        "How is the value of a supply of goods determined when it cannot be determined under "
+        "any of the preceding valuation rules?",
+        date(2023, 4, 1),
+        [
+            _example_chunk(
+                "CGST/r30@v1",
+                "rule",
+                "2021-05-18",
+                "Central Goods and Services Tax Rules, 2017, rule 30 - Value of supply of goods "
+                "or services or both based on cost: 30. Value of supply of goods or services or "
+                "both based on cost.-Where the value of a supply of goods or services or both is "
+                "not determinable by any of the preceding rules of this Chapter, the value shall "
+                "be one hundred and ten percent of the cost of production or manufacture or the "
+                "cost of acquisition of such goods or the cost of provision of such services.",
+            ),
+            _example_chunk(
+                "CGST/r76@v1",
+                "rule",
+                "2021-05-18",
+                "Central Goods and Services Tax Rules, 2017, rule 76 - Claim of reduction in "
+                "output tax liability more than once: 76. Claim of reduction in output tax "
+                "liability more than once .-The duplication of claims for reduction in output "
+                "tax liability in the details of outward supplies shall be communicated to the "
+                "registered person in FORM GST MIS -1 electronically through the common portal.",
+            ),
+        ],
+        {
+            "abstain": False,
+            "ref_date_used": "2023-04-01",
+            "claims": [
+                {
+                    "kind": "conclusion",
+                    "text": "Where the value is not determinable by any of the preceding rules "
+                    "of the Chapter, the value is one hundred and ten percent of the cost of "
+                    "production or manufacture or the cost of acquisition of such goods.",
+                    "citation_ids": ["CGST/r30@v1"],
+                }
+            ],
+            "assumptions": [],
+        },
+    ),
+    (
+        "What is the rate of central tax on intra-State supply of ferro-alloys?",
+        date(2025, 12, 1),
+        [
+            _example_chunk(
+                "CTR/9-2025/schII@v1#261",
+                "notification",
+                "2025-09-22",
+                "Notification No. 9/2025-Central Tax (Rate), Schedule II - central tax rate 9 per "
+                "cent: S. No. 261. 7202 Ferro-alloys",
+            ),
+            _example_chunk(
+                "CTR/9-2025/schII@v1#173",
+                "notification",
+                "2025-09-22",
+                "Notification No. 9/2025-Central Tax (Rate), Schedule II - central tax rate 9 per "
+                "cent: S. No. 173. 4806 40 10 Glassine papers",
+            ),
+        ],
+        {
+            "abstain": False,
+            "ref_date_used": "2025-12-01",
+            "claims": [
+                {
+                    "kind": "conclusion",
+                    "text": "Ferro-alloys (heading 7202) are at S. No. 261 of Schedule II of "
+                    "Notification No. 9/2025-Central Tax (Rate), which carries central tax at "
+                    "9 per cent.",
+                    "citation_ids": ["CTR/9-2025/schII@v1#261"],
+                }
+            ],
+            "assumptions": [],
+        },
+    ),
+)
+
+
+def _few_shot_block() -> str:
+    import json
+
+    parts = ["Examples (the context of each example is given with it):"]
+    for number, (question, ref_date, chunks, output) in enumerate(_FEW_SHOT, 1):
+        parts.append(
+            f"Example {number} input:\n{generator_prompt(question, ref_date, chunks)}\n\n"
+            f"Example {number} output:\n{json.dumps(output, ensure_ascii=False)}"
+        )
+    return "\n\n".join(parts) + "\n"
+
+
+def generator_system(variant: str = "baseline") -> str:
+    """System prompt of a generator prompt variant."""
+    if variant == "baseline":
+        return GENERATOR_SYSTEM
+    if variant == "strict_citations":
+        return GENERATOR_SYSTEM + STRICT_CITATION_RULES
+    if variant == "few_shot":
+        return GENERATOR_SYSTEM + "\n" + _few_shot_block()
+    if variant == "provision_first":
+        return GENERATOR_SYSTEM + PROVISION_FIRST_RULES
+    raise ValueError(f"unknown prompt variant {variant!r}; choose from {PROMPT_VARIANTS}")

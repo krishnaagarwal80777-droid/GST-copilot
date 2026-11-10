@@ -24,9 +24,9 @@ from generation.config import GenerationConfig
 from generation.context import Chunk, build_context
 from generation.horizon import SOURCE_LABELS, knowledge_horizons
 from generation.llm import LLMClient
-from generation.prompts import GENERATOR_SYSTEM, generator_prompt
+from generation.prompts import generator_prompt, generator_system
 from generation.render import render_abstention, render_answer
-from generation.schemas import RESPONSE_SCHEMA, GenerationOutput
+from generation.schemas import GenerationOutput, response_schema
 from generation.verify import Verified, verify
 from retrieval.pipeline import Retriever
 
@@ -58,7 +58,7 @@ class AnswerResult:
     assumptions: list[str] = field(default_factory=list)
     ref_date_matches: bool | None = None
     raw_output: str | None = None
-    llm: dict[str, Any] | None = None  # provider, model, cached, usage
+    llm: dict[str, Any] | None = None  # provider, model, cached, usage, latency_s
     prompt_tokens: dict[str, Any] | None = None  # dry run only
 
     def to_dict(self) -> dict[str, Any]:
@@ -131,8 +131,10 @@ class Answerer:
                 )
                 return abstain("horizon", text)
         prompt = self.prompt(question, ref_date, chunks)
+        system = generator_system(self.config.prompt_variant)
+        schema = response_schema(self.config.prompt_variant)
         if dry_run:
-            count = self.generator.count_tokens(GENERATOR_SYSTEM, prompt)
+            count = self.generator.count_tokens(system, prompt)
             return AnswerResult(
                 **base,
                 abstained=False,
@@ -141,17 +143,16 @@ class Answerer:
                 prompt_tokens={
                     "input_tokens": count.input_tokens,
                     "method": count.method,
-                    "cached": self.generator.is_cached(
-                        GENERATOR_SYSTEM, prompt, schema=RESPONSE_SCHEMA
-                    ),
+                    "cached": self.generator.is_cached(system, prompt, schema=schema),
                 },
             )
-        response = self.generator.complete(GENERATOR_SYSTEM, prompt, schema=RESPONSE_SCHEMA)
+        response = self.generator.complete(system, prompt, schema=schema)
         llm = {
             "provider": response.provider,
             "model": response.model,
             "cached": response.cached,
             "usage": response.usage,
+            "latency_s": response.latency_s,
         }
         try:
             output = GenerationOutput.model_validate_json(response.text)

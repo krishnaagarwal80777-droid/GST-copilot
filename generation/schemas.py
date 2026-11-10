@@ -53,3 +53,27 @@ RESPONSE_SCHEMA: dict = {
     "required": ["claims", "assumptions", "ref_date_used", "abstain"],
     "propertyOrdering": ["abstain", "ref_date_used", "claims", "assumptions"],
 }
+
+# provision_first prompt variant: the governing provision is identified before the claims.
+RESPONSE_SCHEMA_PROVISION_FIRST: dict = {
+    **RESPONSE_SCHEMA,
+    "properties": {
+        "governing": {
+            "type": "OBJECT",
+            "properties": {
+                "citation_id": {"type": "STRING"},
+                "in_force": {"type": "STRING"},
+                "covers_ref_date": {"type": "BOOLEAN"},
+            },
+            "required": ["citation_id", "in_force", "covers_ref_date"],
+            "propertyOrdering": ["citation_id", "in_force", "covers_ref_date"],
+        },
+        **RESPONSE_SCHEMA["properties"],
+    },
+    "required": ["governing", *RESPONSE_SCHEMA["required"]],
+    "propertyOrdering": ["governing", *RESPONSE_SCHEMA["propertyOrdering"]],
+}
+
+
+def response_schema(variant: str = "baseline") -> dict:
+    return RESPONSE_SCHEMA_PROVISION_FIRST if variant == "provision_first" else RESPONSE_SCHEMA

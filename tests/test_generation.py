@@ -535,3 +535,42 @@ def test_audit_sheet_with_human_verdicts_is_never_overwritten(tmp_path) -> None:
     write([{**row, "human_verdict": "correct"}], sheet)  # still unlabelled: allowed
     with pytest.raises(SystemExit):
         write([{**row, "human_verdict": ""}], sheet)
+
+
+def test_prompt_variants() -> None:
+    import re
+
+    from generation.prompts import _FEW_SHOT, GENERATOR_SYSTEM, PROMPT_VARIANTS, generator_system
+    from generation.schemas import RESPONSE_SCHEMA, response_schema
+
+    # The baseline is the prompt every earlier run used, so its cached answers stay valid.
+    assert generator_system("baseline") == GENERATOR_SYSTEM
+    assert response_schema("baseline") is RESPONSE_SCHEMA
+    systems = {variant: generator_system(variant) for variant in PROMPT_VARIANTS}
+    assert len(set(systems.values())) == len(PROMPT_VARIANTS)
+    assert all(text.startswith(GENERATOR_SYSTEM) for text in systems.values())
+    assert response_schema("provision_first")["propertyOrdering"][0] == "governing"
+    output = GenerationOutput.model_validate_json(
+        '{"governing": {"citation_id": "X@v1", "in_force": "2021", "covers_ref_date": true},'
+        ' "abstain": false, "ref_date_used": "2021-01-01", "claims": [], "assumptions": []}'
+    )
+    assert output.claims == [] and not output.abstain
+    with pytest.raises(ValueError):
+        generator_system("unknown")
+
+    # Few-shot examples overlap no eval item: no gold path, and no goods or provision words.
+    items = load_eval_items(DEFAULT_QUESTION_FILE)
+    gold = {path for item in items for path in item.gold_paths}
+    for question, _, chunks, output in _FEW_SHOT:
+        cited = {cid.split("@")[0] for claim in output["claims"] for cid in claim["citation_ids"]}
+        assert cited <= {chunk.path for chunk in chunks}
+        for chunk in chunks:
+            if chunk.path.startswith("CTR/"):
+                goods = chunk.text.split(":", 1)[1].split(". ", 1)[1]
+                words = set(re.findall(r"[a-z]{4,}", goods.lower()))
+                text = " ".join(f"{i.question} {i.gold_answer}" for i in items).lower()
+                assert not any(word in text for word in words), goods
+            else:
+                assert not any(g == chunk.path or g.startswith(chunk.path + "/") for g in gold), (
+                    chunk.path
+                )

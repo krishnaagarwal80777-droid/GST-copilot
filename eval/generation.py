@@ -48,6 +48,7 @@ from generation.config import GenerationConfig
 from generation.prompts import (
     JUDGE_SYSTEM,
     JUDGE_SYSTEM_V2,
+    PROMPT_VARIANTS,
     PROVISION_SAME_AS_REFERENCE,
     judge_prompt,
 )
@@ -400,6 +401,7 @@ def run(
     tag: str = "",
     note: str = "",
     judge_version: str = DEFAULT_JUDGE,
+    skip_judge: bool = False,
 ) -> None:
     from generation.answer import Answerer
     from generation.llm import QuotaExhausted, generator_client, judge_client
@@ -456,7 +458,7 @@ def run(
                 "cited_paths": result.cited_paths,
                 "judge": None,
             }
-            if item.answerable and not result.abstained:
+            if item.answerable and not result.abstained and not skip_judge:
                 record["judge"] = judge(judge_llm, item, result.rendered, judge_version)
         except QuotaExhausted as error:
             raise SystemExit(
@@ -493,6 +495,13 @@ def run(
             for record in records:
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
         print(f"wrote {items_file.relative_to(ROOT)}")
+        if skip_judge:
+            flags = f"--split {split}" + (f" --tag {tag}" if tag else "")
+            print(
+                "not judged (--no-judge): no rows appended. Judge later with "
+                f"`python -m eval.generation {flags} --from-items --rejudge --judge <version>`."
+            )
+            return
         _append_unless_judge_errors(rows, split, tag)
     else:
         print("partial run (--limit/--source): results not written")
@@ -623,11 +632,20 @@ def main() -> None:
     parser.add_argument(
         "--judge", choices=JUDGE_VERSIONS, default=DEFAULT_JUDGE, help="judge version"
     )
+    parser.add_argument(
+        "--no-judge", action="store_true", help="generate only; judge later with --from-items"
+    )
+    parser.add_argument(
+        "--prompt-variant", choices=PROMPT_VARIANTS, default="baseline", help="generator prompt"
+    )
     args = parser.parse_args()
     if args.from_items:
         from_items(args.split, rejudge=args.rejudge, tag=args.tag, judge_version=args.judge)
         return
     config = GenerationConfig()
+    if args.prompt_variant != "baseline":
+        variant = args.prompt_variant
+        config = replace(config, name=f"{config.name}+prompt={variant}", prompt_variant=variant)
     if args.no_date_gate:
         config = replace(config, name=config.name + "-date_gate", date_gate=False)
     if args.no_gate:
@@ -648,6 +666,7 @@ def main() -> None:
         tag=args.tag,
         note=args.note,
         judge_version=args.judge,
+        skip_judge=args.no_judge,
     )
 
 
