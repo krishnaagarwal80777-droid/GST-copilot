@@ -59,8 +59,9 @@ RESULTS_DIR = ROOT / "eval" / "results"
 SUMMARY_FILE = RESULTS_DIR / "generation.csv"
 JUDGE_REFERENCE_CAP = 6000  # characters of gold text shown to the judge
 JUDGE_VERSIONS = ("v1", "v2")
-# v1 stays the default until v2 is validated against the human audit (eval/judge_audit.py).
-DEFAULT_JUDGE = "v1"
+# v2 validated on the human-labelled dev audit (eval/results/judge_audit_dev_judge-v2.csv):
+# agreement 32/34, Cohen's kappa 0.891, against 29/34 and 0.721 for v1.
+DEFAULT_JUDGE = "v2"
 VERDICTS = ("correct", "partially_correct", "incorrect")
 BOOTSTRAP_RESAMPLES = 1000
 BOOTSTRAP_SEED = 20261011
