@@ -574,3 +574,31 @@ def test_prompt_variants() -> None:
                 assert not any(g == chunk.path or g.startswith(chunk.path + "/") for g in gold), (
                     chunk.path
                 )
+
+
+def test_prompt_variant_choice_follows_the_adoption_rule() -> None:
+    from eval.prompt_variants import choose
+
+    def row(variant, rate, low, high, recall=1.0, tokens=1000.0):
+        return {
+            "variant": variant,
+            "correct_rate": rate,
+            "correct_rate_ci_low": low,
+            "correct_rate_ci_high": high,
+            "citation_recall": recall,
+            "mean_tokens": tokens,
+        }
+
+    base = row("baseline", 0.70, 0.60, 0.80)
+    # Gain inside the baseline interval and dearer: keep the baseline.
+    assert choose([base, row("few_shot", 0.75, 0.65, 0.85, tokens=2000.0)])[:2] == (
+        "few_shot",
+        "baseline",
+    )
+    # Gain inside the interval but cheaper: adopt.
+    assert choose([base, row("strict", 0.75, 0.65, 0.85, tokens=900.0)])[1] == "strict"
+    # Gain above the interval: adopt.
+    assert choose([base, row("first", 0.85, 0.75, 0.95, tokens=2000.0)])[1] == "first"
+    # Tie on correct rate: citation recall, then tokens.
+    tie = [base, row("a", 0.70, 0.6, 0.8, recall=0.9), row("b", 0.70, 0.6, 0.8, tokens=500.0)]
+    assert choose(tie)[:2] == ("b", "b")
