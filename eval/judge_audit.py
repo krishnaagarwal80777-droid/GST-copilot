@@ -7,6 +7,11 @@ a fixed-seed random sample of the items it marked correct. Items that were not j
 reading test answers item by item would turn the test split into a second dev split.
 
     python -m eval.judge_audit --tag v3   ->  eval/results/judge_audit_dev.csv
+
+Once ``human_verdict`` is filled in the sheet is never rewritten. ``--agreement v2`` re-grades
+the sheet's answers with another judge version and reports agreement and Cohen's kappa
+against the human verdicts, beside the judge that built the sheet; the new verdicts go to
+``judge_audit_dev_judge-<version>.csv``.
 """
 
 from __future__ import annotations
@@ -14,9 +19,10 @@ from __future__ import annotations
 import csv
 import json
 import random
+from collections import Counter
 from pathlib import Path
 
-from eval.generation import ROOT, items_path
+from eval.generation import ROOT, VERDICTS, items_path
 from eval.split import item_key, items_in
 
 SPLIT = "dev"
@@ -64,7 +70,14 @@ def _key(record: dict) -> str:
     return record["key"]
 
 
+def read(path: Path = OUT) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
 def write(rows: list[dict[str, str]], path: Path = OUT) -> None:
+    if path.exists() and any(row.get("human_verdict") for row in read(path)):
+        raise SystemExit(f"{path.name} has human verdicts: not overwriting it")
     # utf-8-sig so Excel opens the file with the right encoding.
     with path.open("w", newline="", encoding="utf-8-sig") as handle:
         writer = csv.DictWriter(handle, fieldnames=FIELDS, quoting=csv.QUOTE_ALL)
@@ -72,13 +85,63 @@ def write(rows: list[dict[str, str]], path: Path = OUT) -> None:
         writer.writerows(rows)
 
 
+def cohen_kappa(a: list[str], b: list[str], labels: tuple[str, ...] = VERDICTS) -> float:
+    """Unweighted Cohen's kappa of two label sequences."""
+    n = len(a)
+    observed = sum(x == y for x, y in zip(a, b, strict=True)) / n
+    count_a, count_b = Counter(a), Counter(b)
+    expected = sum(count_a[label] * count_b[label] for label in labels) / (n * n)
+    return (observed - expected) / (1 - expected) if expected < 1 else 1.0
+
+
+def agreement(version: str, path: Path = OUT) -> list[dict[str, str]]:
+    """Re-grade the audit sheet's answers with judge ``version``; the sheet is only read."""
+    from eval.generation import judge
+    from generation.llm import judge_client
+
+    rows = read(path)
+    items = {item_key(item): item for item in items_in(SPLIT)}
+    client = judge_client()
+    out = []
+    for row in rows:
+        verdict = judge(client, items[row["item_key"]], row["generated_answer"], version)
+        out.append(
+            {
+                "item_key": row["item_key"],
+                "human_verdict": row["human_verdict"],
+                "judge_v1": row["judge_verdict"],
+                f"judge_{version}": verdict["verdict"],
+                f"judge_{version}_reason": verdict.get("rationale", ""),
+            }
+        )
+    return out
+
+
 def main() -> None:
     import argparse
-    from collections import Counter
 
-    parser = argparse.ArgumentParser(description="Write the dev judge audit sheet.")
+    parser = argparse.ArgumentParser(description="Write or score the dev judge audit sheet.")
     parser.add_argument("--tag", default="", help='generation run to audit, e.g. "v3"')
+    parser.add_argument("--agreement", metavar="VERSION", help='re-grade with a judge, e.g. "v2"')
     args = parser.parse_args()
+    if args.agreement:
+        version = args.agreement
+        rows = agreement(version)
+        target = OUT.with_name(f"judge_audit_{SPLIT}_judge-{version}.csv")
+        with target.open("w", newline="", encoding="utf-8-sig") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]), quoting=csv.QUOTE_ALL)
+            writer.writeheader()
+            writer.writerows(rows)
+        human = [row["human_verdict"] for row in rows]
+        for name in ("judge_v1", f"judge_{version}"):
+            labels = [row[name] for row in rows]
+            agree = sum(h == x for h, x in zip(human, labels, strict=True))
+            print(
+                f"{name}: agreement {agree}/{len(rows)}, "
+                f"kappa {cohen_kappa(human, labels):.3f}, verdicts {dict(Counter(labels))}"
+            )
+        print(f"wrote {target.relative_to(ROOT)}")
+        return
     rows = audit_rows(args.tag)
     write(rows)
     counts = dict(Counter(row["judge_verdict"] for row in rows))

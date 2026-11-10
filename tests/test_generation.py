@@ -436,3 +436,102 @@ def test_rates_horizon_ends_before_the_first_unapplied_amendment(caplog) -> None
         date(2026, 4, 30),
         "amendments 01/2026 not applied to index",
     )
+
+
+def test_judge_v2_sees_the_gold_provision_text_in_force_on_the_reference_date() -> None:
+    from eval.generation import gold_provision_text, judge
+    from generation.prompts import JUDGE_SYSTEM_V2, PROVISION_SAME_AS_REFERENCE
+
+    # Synthetic rows (mechanics only, not legal text).
+    def row(row_id: str, path: str, start: str, end: str, text: str) -> dict:
+        return {
+            "id": row_id,
+            "path": path,
+            "effective_from": start,
+            "effective_to": end,
+            "text": text,
+        }
+
+    rows = {
+        "CGST/r1": [
+            row("CGST/r1@v1", "CGST/r1", "2017-07-01", "2020-12-31", "old version"),
+            row("CGST/r1@v2", "CGST/r1", "2021-01-01", OPEN_END, "new version"),
+        ],
+        "CTR/0-0000/schI": [
+            row(
+                "CTR/0-0000/schI@v1#1",
+                "CTR/0-0000/schI",
+                "2017-07-01",
+                OPEN_END,
+                "S. No. 1. alpha goods",
+            ),
+            row(
+                "CTR/0-0000/schI@v1#2",
+                "CTR/0-0000/schI",
+                "2017-07-01",
+                OPEN_END,
+                "S. No. 2. beta goods",
+            ),
+        ],
+    }
+
+    def item(paths: list[str], gold: str, ref: date) -> EvalItem:
+        return EvalItem(
+            group_id="g",
+            question="q",
+            ref_date=ref,
+            category="direct_lookup",
+            gold_paths=paths,
+            gold_answer=gold,
+            answerable=True,
+            source="hand",
+        )
+
+    assert gold_provision_text(item(["CGST/r1"], "x", date(2020, 6, 1)), rows) == "old version"
+    assert gold_provision_text(item(["CGST/r1"], "x", date(2021, 6, 1)), rows) == "new version"
+    # A rate schedule contributes only the row the gold answer quotes.
+    rate = item(["CTR/0-0000/schI"], "6 per cent: beta goods", date(2021, 6, 1))
+    assert gold_provision_text(rate, rows) == "S. No. 2. beta goods"
+
+    seen = {}
+
+    class Client:
+        def complete(self, system, prompt):
+            seen["system"], seen["prompt"] = system, prompt
+            raise LLMError("no call")
+
+    judge(Client(), item(["CGST/r1"], "a reference", date(2021, 6, 1)), "answer", "v2", rows)
+    assert seen["system"] == JUDGE_SYSTEM_V2
+    assert "Extra statements supported by the provision text are not errors" in seen["system"]
+    assert "Gold provision text (in force on the reference date):\nnew version" in seen["prompt"]
+    # When the gold answer is the provision text, it is not repeated.
+    judge(Client(), item(["CGST/r1"], "new version", date(2021, 6, 1)), "answer", "v2", rows)
+    assert PROVISION_SAME_AS_REFERENCE in seen["prompt"]
+    # v1 is unchanged: no provision text.
+    judge(Client(), item(["CGST/r1"], "a reference", date(2021, 6, 1)), "answer", "v1", rows)
+    assert "Gold provision text" not in seen["prompt"]
+
+
+def test_judge_versions_keep_separate_items_files_and_kappa() -> None:
+    from eval.generation import items_path
+    from eval.judge_audit import cohen_kappa
+
+    assert items_path("dev", "v3").name == "generation_dev_v3_items.jsonl"
+    assert items_path("dev", "v3", "v2").name == "generation_dev_v3_judge-v2_items.jsonl"
+    assert items_path("test", "", "v2").name == "generation_test_judge-v2_items.jsonl"
+    assert cohen_kappa(["correct", "incorrect"], ["correct", "incorrect"]) == 1.0
+    # 3/4 agreement; marginals a = (2 correct, 2 partial), b = (1 correct, 3 partial).
+    a = ["correct", "correct", "partially_correct", "partially_correct"]
+    b = ["correct", "partially_correct", "partially_correct", "partially_correct"]
+    assert abs(cohen_kappa(a, b) - 0.5) < 1e-9
+
+
+def test_audit_sheet_with_human_verdicts_is_never_overwritten(tmp_path) -> None:
+    from eval.judge_audit import FIELDS, write
+
+    sheet = tmp_path / "audit.csv"
+    row = {field: "x" for field in FIELDS}
+    write([{**row, "human_verdict": ""}], sheet)
+    write([{**row, "human_verdict": "correct"}], sheet)  # still unlabelled: allowed
+    with pytest.raises(SystemExit):
+        write([{**row, "human_verdict": ""}], sheet)

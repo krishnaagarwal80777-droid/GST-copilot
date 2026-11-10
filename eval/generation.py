@@ -10,7 +10,10 @@ reported as counts and rates, per source (all / hand / templated) and category:
 - Abstention (positive class = abstain; gold = not answerable): TP, FP, FN, TN, P, R, F1. In a
   slice with no unanswerable items, recall and F1 are undefined and reported as "n/a".
 - Correctness: answerable items that were answered are graded by the Groq judge against the
-  gold answer (correct / partially_correct / incorrect). "correct" overall counts judge-correct
+  gold answer (correct / partially_correct / incorrect). Judge v2 (``--judge v2``) also sees
+  the gold provision text in force on the reference date and a rubric line on extra
+  statements and omissions; its per-item files are separate (``*_judge-v2_items.jsonl``) and
+  its rows carry ``judge_version`` = v2. "correct" overall counts judge-correct
   answerable items plus unanswerable items that abstained; answerable items that abstained and
   unanswerable items that were answered count as wrong.
 
@@ -32,6 +35,7 @@ from __future__ import annotations
 import csv
 import json
 import random
+import re
 from collections import defaultdict
 from dataclasses import asdict, replace
 from datetime import UTC, date, datetime
@@ -41,13 +45,21 @@ from typing import Any
 from eval.retrieval import git_hash
 from eval.split import item_key, items_in, source_kind
 from generation.config import GenerationConfig
-from generation.prompts import JUDGE_SYSTEM, judge_prompt
+from generation.prompts import (
+    JUDGE_SYSTEM,
+    JUDGE_SYSTEM_V2,
+    PROVISION_SAME_AS_REFERENCE,
+    judge_prompt,
+)
 from gst_copilot.models import EvalItem
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = ROOT / "eval" / "results"
 SUMMARY_FILE = RESULTS_DIR / "generation.csv"
 JUDGE_REFERENCE_CAP = 6000  # characters of gold text shown to the judge
+JUDGE_VERSIONS = ("v1", "v2")
+# v1 stays the default until v2 is validated against the human audit (eval/judge_audit.py).
+DEFAULT_JUDGE = "v1"
 VERDICTS = ("correct", "partially_correct", "incorrect")
 BOOTSTRAP_RESAMPLES = 1000
 BOOTSTRAP_SEED = 20261011
@@ -92,6 +104,7 @@ FIELDS = (
     "citation_recall_ci_low",
     "citation_recall_ci_high",
     "note",
+    "judge_version",  # empty on rows written before judge v2 existed: those are v1
 )
 
 
@@ -109,14 +122,82 @@ def judge_reference(item: EvalItem) -> tuple[str, dict | None]:
     return reference, None
 
 
-def judge(client, item: EvalItem, rendered: str) -> dict[str, Any]:
-    from generation.llm import LLMError
+def _norm(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", text.lower()))
+
+
+_GOLD_ROWS: dict[str, list[dict[str, Any]]] | None = None
+
+
+def gold_rows() -> dict[str, list[dict[str, Any]]]:
+    """Structured-index rows by path (read once from the store)."""
+    global _GOLD_ROWS
+    if _GOLD_ROWS is None:
+        from retrieval.pipeline import PROVISIONS_TABLE
+        from retrieval.store import open_store
+
+        _GOLD_ROWS = defaultdict(list)
+        for row in open_store().rows(PROVISIONS_TABLE):
+            _GOLD_ROWS[row["path"]].append(row)
+    return _GOLD_ROWS
+
+
+def gold_provision_text(item: EvalItem, rows_by_path: dict[str, list[dict[str, Any]]]) -> str:
+    """Text of each gold record in force on the item's reference date (judge v2).
+
+    A rate schedule is one record with hundreds of rows; its text for the item is the schedule
+    row the gold answer quotes (the row sharing most words with the gold answer).
+    """
+    day = item.ref_date.isoformat()
+    blocks: list[str] = []
+    for path in item.gold_paths:
+        valid = [
+            row
+            for row in rows_by_path.get(path, [])
+            if row["effective_from"] <= day <= row["effective_to"]
+        ]
+        if not valid:
+            continue
+        if path.startswith("CTR/"):
+            gold = _words(item.gold_answer)
+            valid = [max(valid, key=lambda row: (len(gold & _words(row["text"])), row["id"]))]
+        blocks.extend(row["text"] for row in valid)
+    text = "\n\n".join(blocks)
+    if len(text) > JUDGE_REFERENCE_CAP:
+        text = text[:JUDGE_REFERENCE_CAP] + " [... provision text truncated]"
+    return text
+
+
+def judge(
+    client,
+    item: EvalItem,
+    rendered: str,
+    version: str = DEFAULT_JUDGE,
+    rows_by_path: dict[str, list[dict[str, Any]]] | None = None,
+) -> dict[str, Any]:
+    from generation.llm import LLMError, QuotaExhausted
 
     reference, distinguishing = judge_reference(item)
-    prompt = judge_prompt(item.question, item.ref_date, reference, rendered, distinguishing)
+    system, provision = JUDGE_SYSTEM, None
+    if version == "v2":
+        system = JUDGE_SYSTEM_V2
+        provision = gold_provision_text(item, gold_rows() if rows_by_path is None else rows_by_path)
+        # Templated "what does X provide" items: the gold answer is the provision text itself.
+        if provision and _norm(reference.split(" [...")[0]) in _norm(provision):
+            provision = PROVISION_SAME_AS_REFERENCE
+        provision = provision or "(not available)"
+    prompt = judge_prompt(
+        item.question, item.ref_date, reference, rendered, distinguishing, provision
+    )
     try:
-        response = client.complete(JUDGE_SYSTEM, prompt)
+        response = client.complete(system, prompt)
         verdict = response.json()
+    except QuotaExhausted:
+        raise
     except (LLMError, ValueError) as error:
         return {"verdict": "judge_error", "rationale": str(error)[:500]}
     label = str(verdict.get("verdict", "")).strip().lower()
@@ -125,6 +206,8 @@ def judge(client, item: EvalItem, rendered: str) -> dict[str, Any]:
         "rationale": verdict.get("rationale", ""),
         "model": response.model,
         "cached": response.cached,
+        "version": version,
+        "usage": getattr(response, "usage", None),
     }
 
 
@@ -316,6 +399,7 @@ def run(
     rerun_test: bool = False,
     tag: str = "",
     note: str = "",
+    judge_version: str = DEFAULT_JUDGE,
 ) -> None:
     from generation.answer import Answerer
     from generation.llm import QuotaExhausted, generator_client, judge_client
@@ -324,7 +408,7 @@ def run(
     from retrieval.rerank import Reranker
     from retrieval.store import open_store
 
-    items_file = items_path(split, tag)
+    items_file = items_path(split, tag, judge_version)
     if split == "test" and not dry_run and items_file.exists() and not rerun_test:
         raise SystemExit(
             f"{items_file.relative_to(ROOT)} exists: the test split has been run. "
@@ -362,23 +446,23 @@ def run(
     for index, item in enumerate(items, 1):
         try:
             result = answerer.answer(item.question, item.ref_date, known_by=known_by)
+            record = {
+                "key": item_key(item),
+                "source": source_kind(item),
+                "category": item.category,
+                "answerable": item.answerable,
+                "gold_paths": item.gold_paths,
+                **result.to_dict(),
+                "cited_paths": result.cited_paths,
+                "judge": None,
+            }
+            if item.answerable and not result.abstained:
+                record["judge"] = judge(judge_llm, item, result.rendered, judge_version)
         except QuotaExhausted as error:
             raise SystemExit(
                 f"stopped at item {index}/{len(items)}: {error}\n"
                 f"{index - 1} items are cached; re-running resumes from item {index}."
             ) from None
-        record = {
-            "key": item_key(item),
-            "source": source_kind(item),
-            "category": item.category,
-            "answerable": item.answerable,
-            "gold_paths": item.gold_paths,
-            **result.to_dict(),
-            "cited_paths": result.cited_paths,
-            "judge": None,
-        }
-        if item.answerable and not result.abstained:
-            record["judge"] = judge(judge_llm, item, result.rendered)
         record["score"] = score_item(item, record)
         records.append(record)
         verdict = (record["judge"] or {}).get("verdict", "-")
@@ -397,10 +481,12 @@ def run(
         "generator_model": "/".join(sorted(models)),
         "judge_model": "/".join(sorted(judges)),
         "abstain_threshold": config.abstain_threshold if config.gate else "",
+        "judge_version": judge_version,
     }
     rows = summarize(records, meta)
     for row in rows:
         row["note"] = note
+        row["judge_version"] = judge_version
     if limit is None and source is None:
         with items_file.open("w", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps({"meta": meta, "config": asdict(config)}) + "\n")
@@ -428,26 +514,44 @@ def _append_unless_judge_errors(rows: list[dict[str, Any]], split: str, tag: str
     print(f"appended {len(rows)} rows to {SUMMARY_FILE.relative_to(ROOT)}")
 
 
-def items_path(split: str, tag: str = "") -> Path:
-    """Per-item results file; a tagged run (e.g. "v2") gets its own file, so earlier runs stay."""
-    return RESULTS_DIR / f"generation_{split}{'_' + tag if tag else ''}_items.jsonl"
+def items_path(split: str, tag: str = "", judge_version: str = "v1") -> Path:
+    """Per-item results file; a tagged run (e.g. "v2") gets its own file, so earlier runs stay,
+    and so does a judge other than v1 (``..._judge-v2_items.jsonl``)."""
+    judged = "" if judge_version == "v1" else f"_judge-{judge_version}"
+    return RESULTS_DIR / f"generation_{split}{'_' + tag if tag else ''}{judged}_items.jsonl"
 
 
-def from_items(split: str, *, rejudge: bool = False, tag: str = "") -> None:
-    """Recompute (and optionally re-judge) a split from its per-item jsonl; append rows."""
+def from_items(
+    split: str, *, rejudge: bool = False, tag: str = "", judge_version: str = "v1"
+) -> None:
+    """Recompute (and optionally re-judge) a split from its per-item jsonl; append rows.
+
+    Re-judging with v1 rewrites the run's own file; another judge version reads the run's
+    answers (no generator calls) and writes its own file, so the v1 verdicts stay."""
     from eval.harness import load_eval_items
-    from generation.llm import judge_client
+    from generation.llm import QuotaExhausted, judge_client
 
     items_file = items_path(split, tag)
+    out_file = items_path(split, tag, judge_version) if rejudge else items_file
+    if not rejudge and judge_version != "v1":
+        items_file = out_file = items_path(split, tag, judge_version)
     lines = items_file.read_text(encoding="utf-8").splitlines()
     header, records = json.loads(lines[0]), [json.loads(line) for line in lines[1:]]
     items = {item_key(item): item for item in load_eval_items()}
     changed = 0
     if rejudge:
         judge_llm = judge_client()
-        for record in records:
+        for index, record in enumerate(records, 1):
             if record["answerable"] and not record["abstained"]:
-                verdict = judge(judge_llm, items[record["key"]], record["rendered"])
+                try:
+                    verdict = judge(
+                        judge_llm, items[record["key"]], record["rendered"], judge_version
+                    )
+                except QuotaExhausted as error:
+                    raise SystemExit(
+                        f"stopped at record {index}/{len(records)} of {items_file.name}: "
+                        f"{error}\nverdicts so far are cached; re-running resumes."
+                    ) from None
                 old = (record.get("judge") or {}).get("verdict")
                 changed += verdict["verdict"] != old
                 record["judge"] = verdict
@@ -462,14 +566,19 @@ def from_items(split: str, *, rejudge: bool = False, tag: str = "") -> None:
         "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
         "git_hash": git_hash(),
         "judge_model": "/".join(sorted(judges)),
+        "judge_version": judge_version,
     }
     rows = summarize(records, meta)
     action = "re-judged" if rejudge else "recomputed"
     note = f"{action} from {items_file.name} (run {original['timestamp']}, {original['git_hash']})"
+    if judge_version != "v1":
+        note += f"; judge={judge_version}"
     for row in rows:
         row["note"] = note
+        row["judge_version"] = judge_version
     if rejudge:
-        with items_file.open("w", encoding="utf-8", newline="\n") as handle:
+        header = {**header, "judge_version": judge_version}
+        with out_file.open("w", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps(header) + "\n")
             for record in records:
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -511,9 +620,12 @@ def main() -> None:
     parser.add_argument("--rejudge", action="store_true", help="with --from-items: re-run judge")
     parser.add_argument("--tag", default="", help='run label, e.g. "v2": own items file')
     parser.add_argument("--note", default="", help="note stored on the appended summary rows")
+    parser.add_argument(
+        "--judge", choices=JUDGE_VERSIONS, default=DEFAULT_JUDGE, help="judge version"
+    )
     args = parser.parse_args()
     if args.from_items:
-        from_items(args.split, rejudge=args.rejudge, tag=args.tag)
+        from_items(args.split, rejudge=args.rejudge, tag=args.tag, judge_version=args.judge)
         return
     config = GenerationConfig()
     if args.no_date_gate:
@@ -535,6 +647,7 @@ def main() -> None:
         rerun_test=args.rerun_test,
         tag=args.tag,
         note=args.note,
+        judge_version=args.judge,
     )
 
 

@@ -49,6 +49,14 @@ different date, or the answer declines to answer.
 Judge substance, not wording or length. Rates and figures must match exactly.
 """
 
+# Judge v2: the judge also sees the gold provision text in force on the reference date.
+JUDGE_SYSTEM_V2 = JUDGE_SYSTEM + (
+    "You are also given the gold provision text in force on the reference date. Extra "
+    "statements supported by the provision text are not errors; omissions of material "
+    "conditions are.\n"
+)
+PROVISION_SAME_AS_REFERENCE = "(the same text as the reference answer above)"
+
 
 def chunk_label(chunk_path: str) -> str:
     """Human citation for an index path."""
@@ -83,13 +91,20 @@ NONE_OWN = "(none: no text is unique to that version)"
 
 
 def judge_prompt(
-    question: str, ref_date: date, reference: str, answer: str, distinguishing: dict | None = None
+    question: str,
+    ref_date: date,
+    reference: str,
+    answer: str,
+    distinguishing: dict | None = None,
+    provision: str | None = None,
 ) -> str:
     parts = [
         f"Reference date: {ref_date.isoformat()}",
         f"Question: {question}",
         f"Reference answer (the law on the reference date):\n{reference}",
     ]
+    if provision is not None:  # judge v2
+        parts.append(f"Gold provision text (in force on the reference date):\n{provision}")
     if distinguishing:
         parts.append(
             "The provision was amended near this date. Text only in the version in force on "
