@@ -29,6 +29,20 @@ class GenerationOutput(BaseModel):
     abstain: bool = False
 
 
+class StrictClaim(Claim):
+    citation_ids: list[str]
+    kind: ClaimKind
+
+
+class StrictGenerationOutput(GenerationOutput):
+    """Output guardrail: every field RESPONSE_SCHEMA requires must be present (no defaults)."""
+
+    claims: list[StrictClaim]
+    assumptions: list[str]
+    ref_date_used: str
+    abstain: bool
+
+
 # Gemini responseSchema (OpenAPI subset) for GenerationOutput.
 RESPONSE_SCHEMA: dict = {
     "type": "OBJECT",

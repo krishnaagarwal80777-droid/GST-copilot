@@ -26,8 +26,9 @@ class GenerationConfig:
     gate: bool = True  # abstain before generation when confidence < abstain_threshold
     abstain_threshold: float = TUNED_ABSTAIN_THRESHOLD
     verify_citations: bool = True  # drop citation ids not in context/servable, then claims
-    # Output guardrail: abstain when any generated claim cites no retrieved (context) record,
-    # instead of dropping that claim and answering with the rest. Off for the eval configs
+    # Output guardrail: the generator output must carry every field of the response schema,
+    # and any generated claim that cites no retrieved (context) record abstains the answer,
+    # instead of that claim being dropped and the rest answered. Off for the eval configs
     # (results stay comparable); the API turns it on.
     strict_claims: bool = False
     # Generator prompt variant (generation.prompts.PROMPT_VARIANTS).

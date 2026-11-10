@@ -9,24 +9,28 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
 
+from api.config import ApiSettings
 from api.schemas import AskRequest, AskResponse, Health
 from api.service import AskService
 from generation.answer import Answerer
 from generation.llm import LLMError
 
 
-def default_answerer() -> Answerer:
+def default_answerer(settings: ApiSettings) -> Answerer:
     from generation.llm import generator_client
     from retrieval.embed import Embedder
     from retrieval.pipeline import Retriever
     from retrieval.rerank import Reranker
     from retrieval.store import open_store
 
-    return Answerer(Retriever(open_store(), Embedder(), Reranker()), generator_client())
+    retriever = Retriever(open_store(), Embedder(), Reranker())
+    return Answerer(retriever, generator_client(), settings.generation)
 
 
 def create_app(service: AskService | None = None) -> FastAPI:
-    service = service or AskService(default_answerer)
+    if service is None:
+        settings = ApiSettings()
+        service = AskService(lambda: default_answerer(settings), settings)
     app = FastAPI(title="GST Tax Copilot", version="0.1.0")
     app.state.service = service
 

@@ -6,7 +6,7 @@ PYTHON ?= python
 SPLIT ?= dev
 
 .PHONY: ingest amendments version-rule36 version-rules core-provisions eval eval-retrieval \
-	templated-items split tune-abstention eval-generation eval-generation-dry test
+	templated-items split tune-abstention eval-generation eval-generation-dry eval-guardrails test
 
 ingest:
 	$(PYTHON) -m ingest.act_snapshot
@@ -47,6 +47,10 @@ eval-generation:
 
 eval-generation-dry:
 	$(PYTHON) -m eval.generation --split $(SPLIT) --dry-run
+
+# Input-guardrail refusal precision/recall (no LLM calls; the retrieval check needs pgvector).
+eval-guardrails:
+	$(PYTHON) -m eval.guardrails
 
 test:
 	$(PYTHON) -m pytest

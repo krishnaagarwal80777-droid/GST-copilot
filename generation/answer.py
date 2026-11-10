@@ -9,7 +9,8 @@
    type is read from a context that matches the question.
 4. Generate: JSON claims with citation ids (generation.schemas), temperature 0, cached.
 5. Verify: drop citation ids not in the context, then claims left without one. With
-   ``strict_claims`` (output guardrail) any claim without a context citation abstains instead.
+   ``strict_claims`` (output guardrail) the output must have every schema field, and any
+   claim without a context citation abstains instead.
 6. Render the fixed template, or the abstention template with the closest provisions.
 """
 
@@ -28,7 +29,7 @@ from generation.horizon import SOURCE_LABELS, knowledge_horizons
 from generation.llm import LLMClient
 from generation.prompts import generator_prompt, generator_system
 from generation.render import render_abstention, render_answer
-from generation.schemas import GenerationOutput, response_schema
+from generation.schemas import GenerationOutput, StrictGenerationOutput, response_schema
 from generation.timing import TimedReranker, ms
 from generation.verify import Verified, verify
 from retrieval.pipeline import Retriever
@@ -192,7 +193,8 @@ class Answerer:
             "latency_s": response.latency_s,
         }
         try:
-            output = GenerationOutput.model_validate_json(response.text)
+            schema_model = StrictGenerationOutput if self.config.strict_claims else GenerationOutput
+            output = schema_model.model_validate_json(response.text)
         except ValidationError:
             timings["verify"] = ms(time.perf_counter() - started)
             return abstain("invalid_output", raw_output=response.text, llm=llm)

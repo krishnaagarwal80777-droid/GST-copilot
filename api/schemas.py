@@ -80,7 +80,9 @@ class AskResponse(BaseModel):
     claims: list[ClaimOut]
     citations: list[Citation]
     abstained: bool
+    # generation.answer.AbstainReason, or "guardrail" for a refused question
     abstain_reason: str | None
+    guardrail: str | None  # generation.guardrails.Guardrail that refused the question
     reference_date: date
     knowledge_date: date | None
     timings_ms: dict[str, float]  # stage -> ms for the stages that ran, plus "total"
