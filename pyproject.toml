@@ -21,6 +21,9 @@ dependencies = [
 [project.optional-dependencies]
 # pgvector backend for retrieval/store.py when `docker compose up -d` is available.
 pgvector = ["psycopg[binary]>=3.1"]
+# HTTP API (api/) and Streamlit UI (ui/).
+api = ["fastapi>=0.115", "uvicorn>=0.30"]
+ui = ["streamlit>=1.40"]
 
 [dependency-groups]
 dev = [

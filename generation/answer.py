@@ -8,12 +8,14 @@
    otherwise the best-scoring chunk. It runs after the confidence gate so that the source
    type is read from a context that matches the question.
 4. Generate: JSON claims with citation ids (generation.schemas), temperature 0, cached.
-5. Verify: drop citation ids not in the context, then claims left without one.
+5. Verify: drop citation ids not in the context, then claims left without one. With
+   ``strict_claims`` (output guardrail) any claim without a context citation abstains instead.
 6. Render the fixed template, or the abstention template with the closest provisions.
 """
 
 from __future__ import annotations
 
+import time
 from dataclasses import asdict, dataclass, field
 from datetime import date
 from typing import Any, Literal
@@ -21,16 +23,19 @@ from typing import Any, Literal
 from pydantic import ValidationError
 
 from generation.config import GenerationConfig
-from generation.context import Chunk, build_context
+from generation.context import Chunk, Context, build_context
 from generation.horizon import SOURCE_LABELS, knowledge_horizons
 from generation.llm import LLMClient
 from generation.prompts import generator_prompt, generator_system
 from generation.render import render_abstention, render_answer
 from generation.schemas import GenerationOutput, response_schema
+from generation.timing import TimedReranker, ms
 from generation.verify import Verified, verify
 from retrieval.pipeline import Retriever
 
-AbstainReason = Literal["horizon", "gate", "model", "no_supported_claims", "invalid_output"]
+AbstainReason = Literal[
+    "horizon", "gate", "model", "no_supported_claims", "unsupported_claim", "invalid_output"
+]
 ABSTAIN_TEXT: dict[str, str] = {
     "horizon": (
         "The reference date {ref_date} is after {horizon}, the last date the corpus covers "
@@ -39,6 +44,9 @@ ABSTAIN_TEXT: dict[str, str] = {
     "gate": "No provision valid on the reference date matches the question closely enough.",
     "model": "The provisions valid on the reference date do not answer the question.",
     "no_supported_claims": "No statement in the draft answer was supported by a cited provision.",
+    "unsupported_claim": (
+        "A statement in the draft answer did not cite a retrieved provision, so no answer is given."
+    ),
     "invalid_output": "The answer could not be produced in the required structured form.",
 }
 
@@ -60,6 +68,9 @@ class AnswerResult:
     raw_output: str | None = None
     llm: dict[str, Any] | None = None  # provider, model, cached, usage, latency_s
     prompt_tokens: dict[str, Any] | None = None  # dry run only
+    # Stage -> milliseconds (generation.timing.STAGES); retrieve and rerank are filled only
+    # when this call built the context.
+    timings_ms: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -84,6 +95,9 @@ class Answerer:
         self.generator = generator
         self.config = config or GenerationConfig()
         self._horizons = horizons
+        if retriever is not None and retriever.reranker is not None:
+            if not isinstance(retriever.reranker, TimedReranker):
+                retriever.reranker = TimedReranker(retriever.reranker)
 
     @property
     def horizons(self) -> dict[str, date]:
@@ -95,6 +109,20 @@ class Answerer:
     def prompt(self, question: str, ref_date: date, chunks: list[Chunk]) -> str:
         return generator_prompt(question, ref_date, chunks)
 
+    def retrieve(
+        self, question: str, ref_date: date, *, known_by: date | None = None
+    ) -> tuple[Context, dict[str, float]]:
+        """The generator context and its retrieve/rerank timings (ms); no LLM call."""
+        reranker = getattr(self.retriever, "reranker", None)
+        timed = reranker if isinstance(reranker, TimedReranker) else None
+        if timed is not None:
+            timed.reset()
+        started = time.perf_counter()
+        context = build_context(self.retriever, question, ref_date, self.config, known_by=known_by)
+        total = time.perf_counter() - started
+        rerank = timed.elapsed() if timed is not None else 0.0
+        return context, {"retrieve": ms(total - rerank), "rerank": ms(rerank)}
+
     def answer(
         self,
         question: str,
@@ -102,14 +130,20 @@ class Answerer:
         *,
         known_by: date | None = None,
         dry_run: bool = False,
+        context: Context | None = None,
     ) -> AnswerResult:
-        context = build_context(self.retriever, question, ref_date, self.config, known_by=known_by)
+        """Answer from ``context`` when given (``retrieve`` with the same arguments),
+        otherwise build it."""
+        timings: dict[str, float] = {}
+        if context is None:
+            context, timings = self.retrieve(question, ref_date, known_by=known_by)
         chunks = context.chunks
         base = {
             "question": question,
             "ref_date": ref_date.isoformat(),
             "context_ids": [chunk.id for chunk in chunks],
             "confidence": round(context.confidence, 4),
+            "timings_ms": timings,
         }
 
         def abstain(reason: AbstainReason, text: str | None = None, **extra: Any) -> AnswerResult:
@@ -146,7 +180,10 @@ class Answerer:
                     "cached": self.generator.is_cached(system, prompt, schema=schema),
                 },
             )
+        started = time.perf_counter()
         response = self.generator.complete(system, prompt, schema=schema)
+        timings["generate"] = ms(time.perf_counter() - started)
+        started = time.perf_counter()
         llm = {
             "provider": response.provider,
             "model": response.model,
@@ -157,8 +194,10 @@ class Answerer:
         try:
             output = GenerationOutput.model_validate_json(response.text)
         except ValidationError:
+            timings["verify"] = ms(time.perf_counter() - started)
             return abstain("invalid_output", raw_output=response.text, llm=llm)
         if output.abstain:
+            timings["verify"] = ms(time.perf_counter() - started)
             return abstain("model", raw_output=response.text, llm=llm)
         if self.config.verify_citations:
             checked = verify(output, chunks, ref_date.isoformat())
@@ -172,10 +211,19 @@ class Answerer:
             "raw_output": response.text,
             "llm": llm,
         }
+        if self.config.strict_claims:
+            allowed = set(base["context_ids"])
+            if checked.dropped_claims or any(
+                not allowed & set(claim.citation_ids) for claim in checked.claims
+            ):
+                timings["verify"] = ms(time.perf_counter() - started)
+                return abstain("unsupported_claim", **dumped)
         if not checked.claims:
+            timings["verify"] = ms(time.perf_counter() - started)
             return abstain("no_supported_claims", **dumped)
         # Rendering states the reference date the pipeline used, whatever the model wrote.
         rendered = render_answer(checked.claims, output.assumptions, ref_date, chunks)
+        timings["verify"] = ms(time.perf_counter() - started)
         return AnswerResult(
             **base,
             abstained=False,

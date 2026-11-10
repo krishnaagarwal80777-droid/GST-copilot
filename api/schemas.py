@@ -1,0 +1,93 @@
+"""Request and response models for POST /ask."""
+
+from __future__ import annotations
+
+import re
+from datetime import date
+from typing import Annotated, Any
+
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
+
+from retrieval.corpus import RATE_NOTIFICATIONS
+
+# The earliest effective date in the corpus: the commencement of the 2017 rate notifications.
+CORPUS_START: date = min(n.effective_from for n in RATE_NOTIFICATIONS)
+# Transport limit only; the question-length guardrail (api.config) refuses well below this.
+MAX_REQUEST_CHARS = 20_000
+
+ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _iso_date_string(value: Any) -> Any:
+    if not isinstance(value, str) or not ISO_DATE.fullmatch(value):
+        raise ValueError("expected a date as YYYY-MM-DD")
+    return value
+
+
+# An ISO "YYYY-MM-DD" string only: not a timestamp, a datetime or another format.
+IsoDate = Annotated[date, BeforeValidator(_iso_date_string)]
+
+
+class AskRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(min_length=1, max_length=MAX_REQUEST_CHARS)
+    reference_date: IsoDate
+    knowledge_date: IsoDate | None = None
+
+    @field_validator("question")
+    @classmethod
+    def not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("question is blank")
+        return value
+
+    @model_validator(mode="after")
+    def check_dates(self) -> AskRequest:
+        if self.reference_date < CORPUS_START:
+            raise ValueError(f"reference_date is before {CORPUS_START.isoformat()} (GST start)")
+        if self.knowledge_date is not None:
+            if self.knowledge_date < CORPUS_START:
+                raise ValueError(f"knowledge_date is before {CORPUS_START.isoformat()}")
+            if self.knowledge_date > date.today():
+                raise ValueError("knowledge_date is in the future")
+        return self
+
+
+class ClaimOut(BaseModel):
+    text: str
+    kind: str
+    citation_ids: list[str]
+    citation_numbers: list[int]  # Citation.number of each id, in the same order
+
+
+class Citation(BaseModel):
+    number: int  # 1-based, in order of first citation
+    id: str  # chunk id: "<path>@v<N>", or "<path>@v<N>#<row>" for a rate-schedule row
+    version_id: str  # "<path>@v<N>"
+    path: str
+    label: str
+    doc_type: str
+    effective_from: date
+    effective_to: date | None  # None: still in force
+    source_url: str | None
+    text: str
+
+
+class AskResponse(BaseModel):
+    request_id: str
+    answer: str  # rendered from the fixed template
+    claims: list[ClaimOut]
+    citations: list[Citation]
+    abstained: bool
+    abstain_reason: str | None
+    reference_date: date
+    knowledge_date: date | None
+    timings_ms: dict[str, float]  # stage -> ms for the stages that ran, plus "total"
+    model: str | None  # the generator that answered; None when no LLM call was made
+
+
+class Health(BaseModel):
+    status: str
+    pipeline_loaded: bool
+    store: str | None
