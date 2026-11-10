@@ -80,6 +80,7 @@ class AskResponse(BaseModel):
     answer: str  # rendered from the fixed template
     claims: list[ClaimOut]
     citations: list[Citation]
+    assumptions: list[str]  # stated by the generator; empty on abstention
     abstained: bool
     # generation.answer.AbstainReason, or "guardrail" for a refused question
     abstain_reason: str | None
