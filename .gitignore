@@ -1,10 +1,14 @@
 # Python
 .venv/
 venv/
+env/
+ENV/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+.hypothesis/
+.mypy_cache/
 
 # Secrets and machine-specific settings
 .env
@@ -15,8 +19,15 @@ local.mk
 
 # Model weights and caches (kept outside the repo on this machine, ignored if placed inside)
 hf-cache/
+.cache/
+models/
 data/cache/
+# Vector stores: LanceDB fallback index; Postgres/pgvector data if bind-mounted here
+# (compose.yaml uses a named Docker volume, outside the repo)
 data/index/
+*.lance/
+pgdata/
+postgres_data/
 
 # Sources and derived data are rebuilt from data/raw/manifest.json and the make targets
 data/raw/*
@@ -30,8 +41,9 @@ eval/.cache/
 eval/results/*.tmp
 
 
-# Documentation
-docs/
+# Documentation: only the results write-up is published
+docs/*
+!docs/RESULTS.md
 
 # Claude
 CLAUDE.md

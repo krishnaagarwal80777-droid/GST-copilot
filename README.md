@@ -65,7 +65,7 @@ flowchart TD
 
 | Ask | Calculation | Observability |
 |---|---|---|
-| ![Ask](docs/img/ask.png) | ![Calculation](docs/img/calculation.png) | ![Observability](docs/img/observability.png) |
+| ![Ask](assets/img/ask.png) | ![Calculation](assets/img/calculation.png) | ![Observability](assets/img/observability.png) |
 
 <sub>Screenshots to be added.</sub>
 
@@ -123,9 +123,10 @@ overwrite an existing test run. Results are appended to `eval/results/` and writ
 | Folder | Contents |
 |---|---|
 | `api/` | FastAPI app: `POST /ask`, `GET /health`, request and response models |
+| `assets/` | images for this README (`assets/img/`) |
 | `data/` | raw sources with a manifest (`raw/`), versioned records (`processed/`), LLM cache |
 | `docker/` | Postgres + pgvector init script |
-| `docs/` | architecture notes and the results write-up |
+| `docs/` | the results write-up, [docs/RESULTS.md](docs/RESULTS.md) |
 | `eval/` | eval sets, the dev/test split, eval scripts, and `results/` |
 | `generation/` | context, prompts, gates, guardrails, tool routing, verification, rendering |
 | `gst_copilot/` | shared record models |

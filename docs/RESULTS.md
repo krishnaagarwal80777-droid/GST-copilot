@@ -360,6 +360,13 @@ The guardrail set was scored once. Its patterns were not tuned on it.
 - **Cold start:** the first request loads the embedding and cross-encoder models; the README
   notes it takes 30 seconds or more.
 
+### Calculator tools
+
+Calculator tools (rate_lookup, gst_split) were added after the frozen evaluation. They are off
+in the eval harness and on in the API. The shipped-config replay on test (0/64 changed) covered
+input guardrails, strict_claims and the number check; tool selection was not replayed on test.
+Calculator results: pending (see next update).
+
 ### Cost (estimates)
 
 | Item | Value |
