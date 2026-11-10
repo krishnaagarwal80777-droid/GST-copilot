@@ -1,7 +1,9 @@
 # GST Tax Copilot: results
 
+_Commit hashes in older result rows map to current ones via [eval/results/commit_map.csv](../eval/results/commit_map.csv)._
+
 Final frozen evaluation of the citation-grounded GST assistant. Code was frozen at commit
-`2dc7c37`, and the final test results were committed in `116d0b4`. Every number below comes from
+`427dd71`, and the final test results were committed in `718b8fd`. Every number below comes from
 a committed file in `eval/results/`. The file behind each table is named in an HTML comment
 beside it. Where a figure comes from elsewhere (code or `data/`), the comment says so.
 

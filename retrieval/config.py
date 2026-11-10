@@ -37,7 +37,7 @@ class RetrievalConfig:
 
 
 # Fusion chosen on the dev split by eval/tune_fusion.py (eval/results/fusion_tuning_dev.csv,
-# commit ff8c5c9): RRF with k=10 and equal weights. Plain RRF (k=60, equal weights) is the
+# commit cb44d54): RRF with k=10 and equal weights. Plain RRF (k=60, equal weights) is the
 # untuned default; on dev dense+bm25 MRR@10 rose from 0.561 to 0.607 (24 items).
 TUNED_FUSION: dict = {"fusion": "rrf", "rrf_k": 10, "w_dense": 1.0, "w_bm25": 1.0, "tie_eps": 0.0}
 

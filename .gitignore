@@ -45,9 +45,6 @@ eval/results/*.tmp
 docs/*
 !docs/RESULTS.md
 
-# Claude
-CLAUDE.md
-claude.md
 
 # Request logs (observability)
 logs/

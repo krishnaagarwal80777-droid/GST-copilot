@@ -26,7 +26,7 @@ calculation eval has not been run yet).
 (guardrails, strict_claims, number check). Tool selection on test was not replayed; see
 [docs/RESULTS.md](docs/RESULTS.md).</sub>
 
-## Architecture
+## How it works
 
 ```mermaid
 flowchart TD

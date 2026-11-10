@@ -120,12 +120,12 @@ def test_split_covers_templated_items_and_keeps_groups_together(templated) -> No
 
 
 def test_hand_written_assignments_are_unchanged() -> None:
-    # Assignments as committed before templated items existed (eval/split.json at 03c423a).
+    # Assignments as committed before templated items existed (eval/split.json at d24dac9).
     import subprocess
 
     try:
         old = subprocess.run(
-            ["git", "show", "03c423a:eval/split.json"],
+            ["git", "show", "d24dac9:eval/split.json"],
             cwd=ROOT,
             capture_output=True,
             text=True,
