@@ -34,6 +34,7 @@ class GenerationConfig:
     # Generator prompt variant (generation.prompts.PROMPT_VARIANTS).
     prompt_variant: str = "baseline"
     # Calculator routing (generation.tools_router): a planner turn may call rate_lookup and
-    # gst_split, and every number in the answer must come from a tool output or cited text.
+    # gst_split; an answer that used a tool must take every number from a tool output, a
+    # cited chunk or the question.
     # Off for the eval configs (results stay comparable); the API turns it on.
     tools: bool = False

@@ -174,3 +174,38 @@ def test_api_returns_the_calculation_and_logs_tool_calls(tmp_path) -> None:
     ]
     assert all(t["latency_ms"] >= 0 for t in line["tool_calls"])
     assert line["planner_calls"] == 2 and "50000" not in json.dumps(line)
+
+
+class DaysRetriever(FakeRetriever):
+    """The rule row says "30 days" (placeholder wording, not legal text)."""
+
+    def __init__(self, provision_text: str) -> None:
+        super().__init__()
+        self.provision_text = provision_text
+
+    def rows_for(self, record_ids, *, on, known_by=None):
+        rows = super().rows_for(record_ids, on=on, known_by=known_by)
+        return [
+            {**row, "text": self.provision_text} if row["path"] == "CGST/r36/ss4" else row
+            for row in rows
+        ]
+
+
+def test_number_check_applies_only_to_answers_that_used_a_tool() -> None:
+    # Ordinary answers (the planner calls no tool) keep the previous behaviour, strict_claims
+    # only: a number written differently from the provision does not abstain.
+    cases = [
+        ("placeholder rule: claim within 30 days", "Credit must be claimed within thirty days."),
+        ("placeholder rule: claim within thirty days", "Credit must be claimed within 30 days."),
+    ]
+    for provision_text, written in cases:
+        generator = ScriptedGenerator([], claims((written, ["CGST/r36/ss4@v5"])))
+        config = GenerationConfig(tools=True, strict_claims=True)
+        ordinary = Answerer(DaysRetriever(provision_text), generator, config, horizons={})
+        result = ordinary.answer("When must credit be claimed under rule 36(4)?", DAY)
+        assert not result.abstained, (written, result.rendered)
+        assert result.tool_calls == [] and len(generator.planner_calls) == 1
+    # A tool answer with a number that is in no tool output abstains.
+    final = claims(("CGST is 4600.00.", ["TOOL-2"]))
+    tool_answer = answerer(ScriptedGenerator([[LOOKUP], [SPLIT]], final)).answer(QUESTION, DAY)
+    assert tool_answer.abstained and tool_answer.abstain_reason == "unsupported_number"

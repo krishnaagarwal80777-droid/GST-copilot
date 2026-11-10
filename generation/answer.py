@@ -16,9 +16,10 @@
 With ``tools`` (calculator routing, generation.tools_router; on in the API, off in the eval
 configs) a planner turn runs first. When it calls a tool, the tool outputs become TOOL-<n>
 context chunks and replace the gates: the retrieved provisions are added only when the gates
-pass. A refused, ambiguous or failed final tool call abstains. In tools mode every number in
-the answer's claims and assumptions must appear in a tool output, a cited chunk or the
-question, otherwise the answer abstains (``unsupported_number``).
+pass. A refused, ambiguous or failed final tool call abstains. When a tool ran, every number
+in the answer's claims and assumptions must appear in a tool output, a cited chunk or the
+question, otherwise the answer abstains (``unsupported_number``). Answers that used no tool
+are checked as before (citations, and strict_claims when on), not for numbers.
 """
 
 from __future__ import annotations
@@ -304,7 +305,7 @@ class Answerer:
         if not checked.claims:
             timings["verify"] = ms(time.perf_counter() - started)
             return abstain("no_supported_claims", **dumped)
-        if self.config.tools:
+        if used_tools:
             cited = {cid for claim in checked.claims for cid in claim.citation_ids}
             sources = [c.text for c in chunks if c.id in cited or c.doc_type == "tool"]
             written = [claim.text for claim in checked.claims] + list(output.assumptions)

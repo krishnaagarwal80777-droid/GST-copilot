@@ -10,8 +10,9 @@ Python runs it, and the answer quotes the tool's numbers.
    as a failed call.
 3. Each tool result becomes a context chunk (id ``TOOL-<n>``, path ``TOOL/<tool>``) for the
    answer call, which must copy the tool's numbers and cite the chunk.
-4. Number check: every number in the answer's claims and assumptions must appear in a tool
-   output, in the text of a cited chunk or in the question; otherwise the answer abstains.
+4. Number check (answers that used a tool only): every number in the answer's claims and
+   assumptions must appear in a tool output, in the text of a cited chunk or in the question;
+   otherwise the answer abstains.
 """
 
 from __future__ import annotations
