@@ -30,7 +30,7 @@ from typing import Any
 
 from eval.split import items_in, source_kind
 from gst_copilot.models import EvalItem
-from retrieval.config import CONFIGS, RetrievalConfig
+from retrieval.config import CONFIGS, RetrievalConfig, ablation_configs
 from retrieval.corpus import RATE_NOTIFICATIONS
 from retrieval.embed import Embedder
 from retrieval.naive import shingles
@@ -156,11 +156,14 @@ def score_item(ranked_hits: list[list[str]], n_gold: int) -> tuple[float, float,
 
 
 def fusion_label(config: RetrievalConfig) -> str:
+    # With split_bm25 the Act/Rules and rate-schedule BM25 rankings are fused as two lists.
+    split = config.bm25 and config.split_bm25 and config.index == "structured"
+    lists = ",bm25=act_rules+rates" if split else ""
     if not (config.dense and config.bm25):
-        return ""
+        return f"rrf(k={config.rrf_k},w_bm25={config.w_bm25}{lists})" if split else ""
     if config.fusion == "dense_first":
-        return f"dense_first(tie_eps={config.tie_eps})"
-    return f"rrf(k={config.rrf_k},w_dense={config.w_dense},w_bm25={config.w_bm25})"
+        return f"dense_first(tie_eps={config.tie_eps}{lists})"
+    return f"rrf(k={config.rrf_k},w_dense={config.w_dense},w_bm25={config.w_bm25}{lists})"
 
 
 class Evaluation:
@@ -302,8 +305,14 @@ def main() -> None:
     parser.add_argument("--split", choices=("dev", "test"), default="test")
     parser.add_argument("--configs", nargs="*", help="config names to run (default: all)")
     parser.add_argument("--no-rebuild", action="store_true", help="reuse the existing index")
+    parser.add_argument(
+        "--no-split-bm25",
+        action="store_true",
+        help="ablation: one BM25 index over Act, Rules and rate-schedule rows",
+    )
     args = parser.parse_args()
-    configs = tuple(c for c in CONFIGS if not args.configs or c.name in args.configs)
+    ladder = ablation_configs(split_bm25=False) if args.no_split_bm25 else CONFIGS
+    configs = tuple(c for c in ladder if not args.configs or c.name in args.configs)
     results = evaluate(configs, split=args.split, rebuild=not args.no_rebuild)
     write_results(results)
     print_table(results)

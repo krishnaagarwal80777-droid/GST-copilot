@@ -2,9 +2,14 @@
 
 1. Context: top servable chunks valid on the reference date (generation.context).
 2. Gate: abstain without calling the LLM when no servable chunk reaches the threshold.
-3. Generate: JSON claims with citation ids (generation.schemas), temperature 0, cached.
-4. Verify: drop citation ids not in the context, then claims left without one.
-5. Render the fixed template, or the abstention template with the closest provisions.
+3. Date gate: abstain without calling the LLM when the reference date is after the knowledge
+   horizon of the question's source type (generation.horizon). The source type is that of the
+   leading context chunk: the pinned exact-match provision if the question cites one,
+   otherwise the best-scoring chunk. It runs after the confidence gate so that the source
+   type is read from a context that matches the question.
+4. Generate: JSON claims with citation ids (generation.schemas), temperature 0, cached.
+5. Verify: drop citation ids not in the context, then claims left without one.
+6. Render the fixed template, or the abstention template with the closest provisions.
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ from pydantic import ValidationError
 
 from generation.config import GenerationConfig
 from generation.context import Chunk, build_context
+from generation.horizon import SOURCE_LABELS, knowledge_horizons
 from generation.llm import LLMClient
 from generation.prompts import GENERATOR_SYSTEM, generator_prompt
 from generation.render import render_abstention, render_answer
@@ -24,8 +30,12 @@ from generation.schemas import RESPONSE_SCHEMA, GenerationOutput
 from generation.verify import Verified, verify
 from retrieval.pipeline import Retriever
 
-AbstainReason = Literal["gate", "model", "no_supported_claims", "invalid_output"]
+AbstainReason = Literal["horizon", "gate", "model", "no_supported_claims", "invalid_output"]
 ABSTAIN_TEXT: dict[str, str] = {
+    "horizon": (
+        "The reference date {ref_date} is after {horizon}, the last date the corpus covers "
+        "for {source}, so the law on that date cannot be confirmed."
+    ),
     "gate": "No provision valid on the reference date matches the question closely enough.",
     "model": "The provisions valid on the reference date do not answer the question.",
     "no_supported_claims": "No statement in the draft answer was supported by a cited provision.",
@@ -63,11 +73,24 @@ class AnswerResult:
 
 class Answerer:
     def __init__(
-        self, retriever: Retriever, generator: LLMClient, config: GenerationConfig | None = None
+        self,
+        retriever: Retriever,
+        generator: LLMClient,
+        config: GenerationConfig | None = None,
+        *,
+        horizons: dict[str, date] | None = None,
     ) -> None:
         self.retriever = retriever
         self.generator = generator
         self.config = config or GenerationConfig()
+        self._horizons = horizons
+
+    @property
+    def horizons(self) -> dict[str, date]:
+        """doc_type -> knowledge horizon; read from the sources on first use."""
+        if self._horizons is None:
+            self._horizons = knowledge_horizons()
+        return self._horizons
 
     def prompt(self, question: str, ref_date: date, chunks: list[Chunk]) -> str:
         return generator_prompt(question, ref_date, chunks)
@@ -89,14 +112,24 @@ class Answerer:
             "confidence": round(context.confidence, 4),
         }
 
-        def abstain(reason: AbstainReason, **extra: Any) -> AnswerResult:
-            rendered = render_abstention(ABSTAIN_TEXT[reason], ref_date, chunks)
+        def abstain(reason: AbstainReason, text: str | None = None, **extra: Any) -> AnswerResult:
+            rendered = render_abstention(text or ABSTAIN_TEXT[reason], ref_date, chunks)
             return AnswerResult(
                 **base, abstained=True, abstain_reason=reason, rendered=rendered, **extra
             )
 
         if not chunks or (self.config.gate and context.confidence < self.config.abstain_threshold):
             return abstain("gate")
+        if self.config.date_gate:
+            source = chunks[0].doc_type
+            horizon = self.horizons.get(source)
+            if horizon is not None and ref_date > horizon:
+                text = ABSTAIN_TEXT["horizon"].format(
+                    ref_date=ref_date.isoformat(),
+                    horizon=horizon.isoformat(),
+                    source=SOURCE_LABELS[source],
+                )
+                return abstain("horizon", text)
         prompt = self.prompt(question, ref_date, chunks)
         if dry_run:
             count = self.generator.count_tokens(GENERATOR_SYSTEM, prompt)

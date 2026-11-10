@@ -489,6 +489,14 @@ def main() -> None:
     parser.add_argument("--source", choices=("hand", "templated"))
     parser.add_argument("--no-gate", action="store_true", help="ablation: no confidence gate")
     parser.add_argument(
+        "--no-date-gate", action="store_true", help="ablation: no knowledge-horizon date gate"
+    )
+    parser.add_argument(
+        "--no-split-bm25",
+        action="store_true",
+        help="ablation: one BM25 index over Act, Rules and rate-schedule rows",
+    )
+    parser.add_argument(
         "--no-verify", action="store_true", help="ablation: keep claims without valid citations"
     )
     parser.add_argument("--rerun-test", action="store_true")
@@ -503,8 +511,12 @@ def main() -> None:
         from_items(args.split, rejudge=args.rejudge, tag=args.tag)
         return
     config = GenerationConfig()
+    if args.no_date_gate:
+        config = replace(config, name=config.name + "-date_gate", date_gate=False)
     if args.no_gate:
         config = replace(config, name=config.name + "-gate", gate=False)
+    if args.no_split_bm25:
+        config = replace(config, name=config.name + "-split_bm25", split_bm25=False)
     if args.no_verify:
         config = replace(config, name=config.name + "-verify", verify_citations=False)
     run(

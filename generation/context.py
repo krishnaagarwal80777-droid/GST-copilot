@@ -9,7 +9,7 @@ best chunk of each exact-match record, then the highest-scoring remaining chunks
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 
 from generation.config import GenerationConfig
@@ -52,6 +52,7 @@ def build_context(
     if retriever.reranker is None:
         raise ValueError("generation context needs the cross-encoder (Retriever(reranker=...))")
     rconfig = retrieval_config(config.retrieval)
+    rconfig = replace(rconfig, split_bm25=config.split_bm25 and rconfig.bm25)
     # The date filter is not optional here: the generator only ever sees valid versions.
     record_ids = retriever.search(
         question, rconfig, on=on, known_by=known_by, k=config.candidate_records

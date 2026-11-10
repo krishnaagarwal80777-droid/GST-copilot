@@ -23,6 +23,9 @@ class RetrievalConfig:
     w_dense: float = 1.0
     w_bm25: float = 1.0
     tie_eps: float = 0.0
+    # Separate BM25 indexes for Act/Rules rows and rate-schedule rows (structured index only);
+    # each index adds its own ranking to the fusion with weight w_bm25.
+    split_bm25: bool = False
     rerank: bool = False
     rerank_top: int = 20
     candidates: int = 50
@@ -38,10 +41,13 @@ def with_fusion(config: RetrievalConfig, fusion: dict) -> RetrievalConfig:
     return replace(config, **fusion)
 
 
-def ablation_configs(fusion: dict | None = None) -> tuple[RetrievalConfig, ...]:
-    """Cumulative ablation ladder reported by `make eval-retrieval`."""
+def ablation_configs(
+    fusion: dict | None = None, *, split_bm25: bool = True
+) -> tuple[RetrievalConfig, ...]:
+    """Cumulative ablation ladder reported by `make eval-retrieval`. ``split_bm25`` applies to
+    every rung that uses BM25 (`python -m eval.retrieval --no-split-bm25` turns it off)."""
     fused = TUNED_FUSION if fusion is None else fusion
-    return (
+    ladder = (
         RetrievalConfig("naive", index="naive"),
         RetrievalConfig("dense"),
         RetrievalConfig("bm25", dense=False, bm25=True),
@@ -57,6 +63,7 @@ def ablation_configs(fusion: dict | None = None) -> tuple[RetrievalConfig, ...]:
             fused,
         ),
     )
+    return tuple(replace(config, split_bm25=split_bm25 and config.bm25) for config in ladder)
 
 
 CONFIGS: tuple[RetrievalConfig, ...] = ablation_configs()

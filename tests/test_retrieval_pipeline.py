@@ -6,7 +6,7 @@ from datetime import date
 import numpy as np
 import pytest
 
-from retrieval.config import CONFIGS, RetrievalConfig
+from retrieval.config import CONFIGS, RetrievalConfig, ablation_configs
 from retrieval.exact_match import exact_paths, parse_citations
 from retrieval.fusion import rrf
 
@@ -61,6 +61,9 @@ def test_ablation_ladder_is_cumulative() -> None:
     full = CONFIGS[-2]
     assert (full.dense, full.bm25, full.exact_match, full.date_filter) == (True, True, True, True)
     assert CONFIGS[-1].rerank and not full.rerank
+    # split_bm25 is on for every rung that uses BM25, and can be switched off for the ladder.
+    assert [config.split_bm25 for config in CONFIGS] == [config.bm25 for config in CONFIGS]
+    assert not any(config.split_bm25 for config in ablation_configs(split_bm25=False))
 
 
 def test_weighted_rrf_and_dense_first() -> None:
@@ -175,3 +178,39 @@ def test_exact_match_pins_the_cited_provision_first(retriever) -> None:
     )
     assert plain[0] != "CGST/s99/ss2@v1"
     assert pinned[0] == "CGST/s99/ss2@v1"
+
+
+def test_split_bm25_gives_rate_rows_their_own_index_and_ranking(tmp_path) -> None:
+    # Synthetic rows exercising the mechanics only (not legal text): two long provision rows
+    # and three short rows of one rate schedule, which mention "alpha" as often as T/s2 does.
+    def rate(s_no: int, text: str) -> dict:
+        row = _row("CTR/0-0000/schI@v1", "2018-01-01", None, text)
+        return {**row, "id": f"{row['id']}#{s_no}", "act_id": "CTR", "doc_type": "notification"}
+
+    filler = " ".join(f"word{n}" for n in range(40))
+    rows = [
+        _row("T/s1@v1", "2018-01-01", None, f"alpha beta beta {filler}"),
+        _row("T/s2@v1", "2018-01-01", None, f"alpha gamma {filler}"),
+        rate(1, "alpha one"),
+        rate(2, "alpha two"),
+        rate(3, "beta three"),
+    ]
+    embedder = HashEmbedder()
+    store = LanceStore(tmp_path / "lance")
+    store.write(PROVISIONS_TABLE, rows, embedder.encode([row["text"] for row in rows]))
+    retriever = Retriever(store, embedder)
+    merged = RetrievalConfig("b", dense=False, bm25=True)
+    split = RetrievalConfig("b", dense=False, bm25=True, split_bm25=True)
+
+    assert [len(part) for part, _ in retriever._bm25_indexes(PROVISIONS_TABLE, True)] == [2, 3]
+    assert [len(part) for part, _ in retriever._bm25_indexes(PROVISIONS_TABLE, False)] == [5]
+    # One index: the short rate rows outscore the long provision rows on the shared term.
+    assert retriever.search("alpha", merged, on=date(2021, 1, 1))[0] == "CTR/0-0000/schI@v1"
+    # Split: each index ranks its own rows, and both rankings reach the fused result.
+    rankings = retriever._bm25_rankings(PROVISIONS_TABLE, "alpha beta", split, None)
+    assert rankings == [["T/s1@v1", "T/s2@v1"], ["CTR/0-0000/schI@v1"]]
+    fused = retriever.search("alpha beta", split, on=date(2021, 1, 1))
+    # Equal RRF scores (rank 1 in each list) tie-break by id.
+    assert fused == ["CTR/0-0000/schI@v1", "T/s1@v1", "T/s2@v1"]
+    with_dense = RetrievalConfig("t", bm25=True, split_bm25=True)
+    assert set(retriever.search("alpha beta", with_dense, on=date(2021, 1, 1))) == set(fused)

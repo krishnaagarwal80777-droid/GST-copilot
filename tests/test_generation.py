@@ -7,14 +7,20 @@ import httpx
 import pytest
 
 from eval.generation import score_item, summarize
+from eval.harness import DEFAULT_QUESTION_FILE, act_source_horizon, load_eval_items
 from eval.tune_abstention import choose
-from generation.context import Chunk
+from generation.answer import Answerer
+from generation.config import TUNED_ABSTAIN_THRESHOLD, GenerationConfig
+from generation.context import Chunk, Context
+from generation.horizon import AMENDMENTS_FILE, RAW, knowledge_horizons, rate_notification_dates
 from generation.llm import LLMClient, LLMError
 from generation.prompts import chunk_label, generator_prompt
 from generation.render import DISCLAIMER, render_abstention, render_answer
 from generation.schemas import Claim, GenerationOutput
 from generation.verify import verify
 from gst_copilot.models import EvalItem
+from retrieval.corpus import RATE_NOTIFICATIONS
+from retrieval.store import OPEN_END
 
 
 def chunk(chunk_id: str, path: str, text: str = "text") -> Chunk:
@@ -286,3 +292,102 @@ def test_bootstrap_intervals_are_seeded_and_bracket_the_estimate() -> None:
     assert first["correct_rate_ci_low"] <= first["correct_rate"] <= first["correct_rate_ci_high"]
     low, high = first["citation_recall_ci_low"], first["citation_recall_ci_high"]
     assert low <= first["citation_recall"] == 0.6 <= high
+
+
+# -- date gate --------------------------------------------------------------------------
+
+
+def future_rate_item() -> EvalItem:
+    """The hand-written "Portland cement in 2028" abstain item (eval/questions.jsonl)."""
+    (found,) = [
+        entry
+        for entry in load_eval_items(DEFAULT_QUESTION_FILE)
+        if entry.group_id == "abs-future-rate"
+    ]
+    return found
+
+
+def rate_context() -> Context:
+    # The item's v2 context: rows of Schedule II of 9/2025, best score above the threshold.
+    schedule = next(n for n in RATE_NOTIFICATIONS if n.number == "9/2025")
+    record_id = "CTR/9-2025/schII@v1"
+    chunks = [
+        Chunk(
+            f"{record_id}#{s_no}",
+            record_id,
+            "CTR/9-2025/schII",
+            "notification",
+            schedule.effective_from.isoformat(),
+            OPEN_END,
+            "text",
+            score,
+            False,
+        )
+        for s_no, score in ((9, 0.8965), (226, 0.5))
+    ]
+    return Context(chunks, confidence=0.8965, candidates=len(chunks))
+
+
+def model_abstains(tmp_path, calls: list) -> LLMClient:
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        reply = {"abstain": True, "ref_date_used": "", "claims": [], "assumptions": []}
+        return httpx.Response(200, json=gemini_reply(json.dumps(reply)))
+
+    return client(handler, tmp_path)
+
+
+def test_date_gate_abstains_on_future_rate_question_without_calling_the_llm(
+    tmp_path, monkeypatch
+) -> None:
+    question = future_rate_item()
+    assert "Portland cement" in question.question and question.ref_date == date(2028, 1, 1)
+    context = rate_context()
+    assert context.confidence >= TUNED_ABSTAIN_THRESHOLD  # the confidence gate lets it through
+    monkeypatch.setattr("generation.answer.build_context", lambda *args, **kwargs: context)
+    calls: list[str] = []
+    answerer = Answerer(None, model_abstains(tmp_path, calls))
+
+    result = answerer.answer(question.question, question.ref_date)
+
+    horizon = knowledge_horizons()["notification"]
+    assert question.ref_date > horizon
+    assert result.abstained and result.abstain_reason == "horizon" and not calls
+    assert result.rendered.startswith("**Not enough information**")
+    assert (
+        f"The reference date 2028-01-01 is after {horizon.isoformat()}, the last date the "
+        "corpus covers for rate notifications"
+    ) in result.rendered
+    # On the horizon date itself the question goes to the generator.
+    on_horizon = answerer.answer(question.question, horizon)
+    assert on_horizon.abstain_reason == "model" and len(calls) == 1
+
+
+def test_date_gate_is_a_flag_and_uses_the_leading_chunk_source_type(tmp_path, monkeypatch) -> None:
+    question = future_rate_item()
+    context = rate_context()
+    monkeypatch.setattr("generation.answer.build_context", lambda *args, **kwargs: context)
+    calls: list[str] = []
+    off = Answerer(None, model_abstains(tmp_path, calls), GenerationConfig(date_gate=False))
+    assert off.answer(question.question, question.ref_date).abstain_reason == "model"
+    assert len(calls) == 1
+    # Each source type has its own horizon: a date between two horizons is gated for one only.
+    horizons = {"notification": date(2026, 1, 1), "rule": date(2027, 1, 1)}
+    gated = Answerer(None, model_abstains(tmp_path, calls), horizons=horizons)
+    assert gated.answer("q", date(2026, 6, 1)).abstain_reason == "horizon"
+    rule_first = Context([CONTEXT[0], *context.chunks], context.confidence, 3)
+    monkeypatch.setattr("generation.answer.build_context", lambda *args, **kwargs: rule_first)
+    assert gated.answer("q", date(2026, 6, 1)).abstain_reason == "model"
+
+
+def test_horizons_come_from_the_sources() -> None:
+    # ctr-01-2026_2026-04-30.pdf: "New Delhi, the 30th April, 2026" and "This notification
+    # shall come into force from 1st May, 2026."
+    issued, commencement = rate_notification_dates(RAW / "ctr-01-2026_2026-04-30.pdf")
+    assert (issued, commencement) == (date(2026, 4, 30), date(2026, 5, 1))
+    horizons = knowledge_horizons()
+    assert horizons["notification"] >= commencement
+    assert horizons["act"] == act_source_horizon()
+    with AMENDMENTS_FILE.open(encoding="utf-8") as handle:
+        issue_dates = [json.loads(line)["issue_date"] for line in handle if line.strip()]
+    assert horizons["rule"].isoformat() == max(issue_dates)
