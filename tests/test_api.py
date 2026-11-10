@@ -16,7 +16,7 @@ from api.service import AskService
 from generation.answer import Answerer
 from generation.config import GenerationConfig
 from generation.guardrails import REFUSALS, GuardrailConfig
-from generation.llm import LLMError, LLMResponse
+from generation.llm import LLMError, LLMResponse, ToolTurn
 from retrieval.store import OPEN_END
 
 ROWS = [
@@ -85,6 +85,13 @@ class StubGenerator:
         usage = {"promptTokenCount": 1200, "candidatesTokenCount": 80}
         return LLMResponse(text, "stub", self.model, False, usage, 0.01)
 
+    def complete_tools(self, system, contents, tools):
+        # The calculator planner (on in the API): these questions need no tool.
+        if isinstance(self.reply, Exception):
+            raise self.reply
+        usage = {"promptTokenCount": 300, "candidatesTokenCount": 2}
+        return ToolTurn([{"text": "NO_TOOL"}], "stub", self.model, False, usage, 0.01)
+
 
 def answer(*claims: tuple[str, list[str]]) -> dict:
     return {
@@ -138,7 +145,15 @@ def test_ask_returns_claims_with_numbered_citations() -> None:
     assert (
         "First claim." in data["answer"] and "**Reference date used:** 2026-01-15" in data["answer"]
     )
-    assert set(data["timings_ms"]) == {"retrieve", "rerank", "generate", "verify", "total"}
+    assert set(data["timings_ms"]) == {
+        "retrieve",
+        "rerank",
+        "plan",
+        "tools",
+        "generate",
+        "verify",
+        "total",
+    }
     assert len(data["request_id"]) == 32
 
 

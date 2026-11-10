@@ -10,8 +10,8 @@ from generation.guardrails import GuardrailConfig
 
 @dataclass(frozen=True)
 class ApiSettings:
-    # The eval "full" config with the output guardrail on.
+    # The eval "full" config with the output guardrail and calculator routing on.
     generation: GenerationConfig = field(
-        default_factory=lambda: GenerationConfig(name="api", strict_claims=True)
+        default_factory=lambda: GenerationConfig(name="api", strict_claims=True, tools=True)
     )
     guardrails: GuardrailConfig = field(default_factory=GuardrailConfig)

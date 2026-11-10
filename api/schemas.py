@@ -75,6 +75,23 @@ class Citation(BaseModel):
     text: str
 
 
+class ToolCallOut(BaseModel):
+    """One calculator call (generation.tools_router): what the model asked for and what Python
+    computed. ``result`` values are strings, exactly as the answer must quote them."""
+
+    name: str  # "rate_lookup" or "gst_split"
+    arguments: dict[str, Any]
+    ok: bool  # False when the arguments were invalid
+    error: str | None
+    status: str | None  # ToolResult.status: ok, ambiguous, not_found, refused
+    result: dict[str, Any] | None
+    steps: list[str]
+    citations: list[str]  # index row ids the result rests on
+    notes: list[str]
+    candidates: list[dict[str, Any]]  # every matching row of an ambiguous lookup
+    latency_ms: float
+
+
 class AskResponse(BaseModel):
     request_id: str
     answer: str  # rendered from the fixed template
@@ -89,6 +106,8 @@ class AskResponse(BaseModel):
     knowledge_date: date | None
     timings_ms: dict[str, float]  # stage -> ms for the stages that ran, plus "total"
     model: str | None  # the generator that answered; None when no LLM call was made
+    # Calculator calls made for this answer, in order (empty when no tool was used).
+    tool_calls: list[ToolCallOut] = Field(default_factory=list)
 
 
 class Health(BaseModel):

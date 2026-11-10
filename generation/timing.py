@@ -13,7 +13,8 @@ import time
 from collections.abc import Sequence
 from typing import Any
 
-STAGES = ("retrieve", "rerank", "generate", "verify")
+# "plan" and "tools" run only with calculator routing (GenerationConfig.tools).
+STAGES = ("retrieve", "rerank", "plan", "tools", "generate", "verify")
 
 
 class TimedReranker:

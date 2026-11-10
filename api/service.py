@@ -16,7 +16,7 @@ from datetime import date
 from typing import Any
 
 from api.config import ApiSettings
-from api.schemas import AskRequest, AskResponse, Citation, ClaimOut
+from api.schemas import AskRequest, AskResponse, Citation, ClaimOut, ToolCallOut
 from api.sources import source_file, source_url
 from generation.answer import Answerer, AnswerResult
 from generation.context import Chunk
@@ -28,10 +28,33 @@ from generation.guardrails import (
 )
 from generation.prompts import chunk_label
 from generation.timing import ms
-from observability.log import RequestLogger, llm_fields, now, question_hash
+from generation.tools_router import chunks_from_records
+from observability.log import RequestLogger, llm_fields, now, planner_fields, question_hash
 from retrieval.store import OPEN_END
 
 log = logging.getLogger("gst_copilot.api")
+
+
+def tool_calls_out(result: AnswerResult) -> list[ToolCallOut]:
+    out = []
+    for call in result.tool_calls:
+        output = call.get("output") or {}
+        out.append(
+            ToolCallOut(
+                name=call["name"],
+                arguments=call["arguments"],
+                ok=call["ok"],
+                error=call.get("error"),
+                status=output.get("status"),
+                result=output.get("result"),
+                steps=output.get("steps", []),
+                citations=output.get("citations", []),
+                notes=output.get("notes", []),
+                candidates=output.get("candidates", []),
+                latency_ms=call["latency_ms"],
+            )
+        )
+    return out
 
 
 def citations_for(
@@ -118,6 +141,8 @@ class AskService:
             "abstain_reason": None,
             "guardrail": None,
             **llm_fields(None),
+            **planner_fields([]),
+            "tool_calls": [],
             "status": "error",
         }
         try:
@@ -155,8 +180,17 @@ class AskService:
             abstained=result.abstained,
             abstain_reason=result.abstain_reason,
             **llm_fields(result.llm),
+            **planner_fields(result.plan_llm),
+            tool_calls=[
+                {"name": c["name"], "latency_ms": c["latency_ms"], "success": c["ok"]}
+                for c in result.tool_calls
+            ],
         )
-        claims, citations = citations_for(result, context.chunks)
+        if trace["cost_usd"] is not None and trace["planner_cost_usd"] is not None:
+            trace["cost_usd"] = round(trace["cost_usd"] + trace["planner_cost_usd"], 8)
+        # Calculator outputs (TOOL- ids) are cited like provisions.
+        answer_chunks = chunks_from_records(result.tool_calls, request.reference_date)
+        claims, citations = citations_for(result, answer_chunks + context.chunks)
         return AskResponse(
             request_id=trace["request_id"],
             answer=result.rendered,
@@ -170,6 +204,7 @@ class AskService:
             knowledge_date=request.knowledge_date,
             timings_ms={**trace["timings_ms"], "total": ms(time.perf_counter() - started)},
             model=trace["model"],
+            tool_calls=tool_calls_out(result),
         )
 
     def _refuse(

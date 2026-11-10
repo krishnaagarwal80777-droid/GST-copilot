@@ -38,7 +38,15 @@ def test_one_log_line_per_request_without_question_text(tmp_path) -> None:
     assert first["request_id"] == data["request_id"] and first["status"] == "ok"
     assert first["question_sha256"] == question_hash(BODY["question"])
     assert (first["reference_date"], first["knowledge_date"]) == ("2026-01-15", "2025-12-31")
-    assert set(first["timings_ms"]) == {"retrieve", "rerank", "generate", "verify", "total"}
+    assert set(first["timings_ms"]) == {
+        "retrieve",
+        "rerank",
+        "plan",
+        "tools",
+        "generate",
+        "verify",
+        "total",
+    }
     assert first["retrieved_ids"] == ["CGST/r36/ss4@v5", "CTR/9-2025/schI@v1#3"]
     assert first["gate_score"] == 0.9 and first["abstained"] is False
     assert first["model"] == "stub-model" and first["cache_hit"] is False

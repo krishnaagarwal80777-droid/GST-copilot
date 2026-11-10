@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:  # streamlit puts only ui/ on the path
 
 from observability.config import LOG_PATH  # noqa: E402
 from observability.report import load, summarize  # noqa: E402
-from ui.client import API_URL, ask, claims_markdown, validity  # noqa: E402
+from ui.client import API_URL, ask, calculation_markdown, claims_markdown, validity  # noqa: E402
 
 st.set_page_config(page_title="GST Tax Copilot", layout="wide")
 st.title("GST Tax Copilot")
@@ -80,6 +80,13 @@ with ask_tab:
                                 )
                             elif citation["source_file"]:
                                 st.markdown(f"Source file: `{citation['source_file']}`")
+                if data.get("tool_calls"):
+                    with st.expander("Calculation", expanded=True):
+                        st.caption(
+                            "Numbers computed by Python tools (the model only chose the tool "
+                            "and its arguments)."
+                        )
+                        st.markdown(calculation_markdown(data))
                 timings = "  ·  ".join(f"{k} {v:.0f} ms" for k, v in data["timings_ms"].items())
                 model = data["model"] or "none (no LLM call)"
                 st.caption(f"request {data['request_id']}  ·  model {model}  ·  {timings}")
@@ -113,6 +120,11 @@ with obs_tab:
         left.json(summary["guardrails"] or {})
         right.markdown("**Abstention reasons**")
         right.json(summary["abstain_reasons"] or {})
+        st.markdown(
+            f"Tool calls: {summary['tool_calls'] or '{}'} in {summary['tool_requests']} "
+            f"requests  ·  success rate {pct(summary['tool_success_rate'])}  ·  p50 latency "
+            f"{summary['tool_latency_p50_ms'] or '-'} ms"
+        )
         st.markdown(
             f"Generator calls: {summary['generator_calls']}  ·  mean tokens per call: "
             f"input {summary['mean_input_tokens']}, output {summary['mean_output_tokens']}  ·  "

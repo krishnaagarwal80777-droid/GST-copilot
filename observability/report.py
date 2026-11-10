@@ -63,6 +63,7 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     abstained = [r for r in passed if r.get("abstained")]
     generated = [r for r in ok if r.get("model")]
     costs = [r["cost_usd"] for r in ok if r.get("cost_usd") is not None]
+    calls = [call for r in ok for call in r.get("tool_calls") or []]
     return {
         "requests": len(records),
         "errors": len(records) - len(ok),
@@ -86,6 +87,10 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         "mean_cost_usd": round(sum(costs) / len(costs), 8) if costs else None,
         "total_cost_usd": round(sum(costs), 6) if costs else None,
         "unpriced_requests": sum(r.get("cost_usd") is None for r in ok),
+        "tool_requests": sum(1 for r in ok if r.get("tool_calls")),
+        "tool_calls": dict(Counter(call["name"] for call in calls)),
+        "tool_success_rate": _rate(sum(bool(call["success"]) for call in calls), len(calls)),
+        "tool_latency_p50_ms": percentile([call["latency_ms"] for call in calls], 0.5),
     }
 
 
@@ -109,6 +114,9 @@ def format_report(summary: dict[str, Any]) -> str:
         f"output {show(summary['mean_output_tokens'])} (requests that reached the generator)",
         f"cost/request:     ${show(summary['mean_cost_usd'])} "
         f"(total ${show(summary['total_cost_usd'])}; unpriced {summary['unpriced_requests']})",
+        f"tool calls:       {summary['tool_calls']} in {summary['tool_requests']} requests "
+        f"(success rate {show(summary['tool_success_rate'])}, "
+        f"p50 {show(summary['tool_latency_p50_ms'])} ms)",
     ]
     return "\n".join(lines)
 

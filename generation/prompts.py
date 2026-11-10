@@ -60,6 +60,8 @@ PROVISION_SAME_AS_REFERENCE = "(the same text as the reference answer above)"
 
 def chunk_label(chunk_path: str) -> str:
     """Human citation for an index path."""
+    if chunk_path.startswith("TOOL/"):  # calculator output (generation.tools_router)
+        return f"Calculation: {chunk_path.split('/', 1)[1]}"
     if chunk_path.startswith("CTR/"):
         parts = chunk_path.split("/")
         label = f"Notification No. {parts[1].replace('-', '/')}-Central Tax (Rate)"
@@ -69,6 +71,8 @@ def chunk_label(chunk_path: str) -> str:
 
 
 def _validity(chunk: Chunk) -> str:
+    if chunk.doc_type == "tool":
+        return "calculator output for this question"
     end = "" if chunk.effective_to.startswith("9999") else chunk.effective_to
     return f"in force {chunk.effective_from} to {end or 'date'}"
 

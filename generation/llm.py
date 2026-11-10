@@ -83,6 +83,27 @@ class LLMResponse:
 
 
 @dataclass(frozen=True)
+class ToolTurn:
+    """One function-calling turn: the model's content parts as returned."""
+
+    parts: list[dict[str, Any]]
+    provider: str
+    model: str
+    cached: bool
+    usage: dict[str, Any] = field(default_factory=dict)
+    latency_s: float | None = None
+
+    @property
+    def function_calls(self) -> list[dict[str, Any]]:
+        """[{"name": ..., "args": {...}}] in the order the model made them."""
+        return [p["functionCall"] for p in self.parts if "functionCall" in p]
+
+    @property
+    def text(self) -> str:
+        return "".join(p.get("text", "") for p in self.parts if not p.get("thought"))
+
+
+@dataclass(frozen=True)
 class TokenCount:
     input_tokens: int
     method: Literal["api", "estimate"]
@@ -170,6 +191,60 @@ class LLMClient:
 
     def is_cached(self, system: str, prompt: str, *, schema: dict[str, Any] | None = None) -> bool:
         return self._cache_read(self._cache_key(system, prompt, schema)) is not None
+
+    def complete_tools(
+        self, system: str, contents: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> ToolTurn:
+        """One function-calling turn (Gemini): ``contents`` is the conversation so far and
+        ``tools`` the function declarations. The model's parts are returned verbatim, so they
+        can be sent back with the function responses (Gemini 3 needs its thought signatures
+        returned). Temperature 0; cached like ``complete``."""
+        if self.provider != "gemini":
+            raise LLMError("function calling is implemented for Gemini only")
+        payload = {"kind": "tools", "contents": contents, "tools": tools}
+        key = self._cache_key(system, json.dumps(payload, sort_keys=True), None)
+        cached = self._cache_read(key)
+        if cached is not None:
+            return ToolTurn(**cached, cached=True)
+        if not self.api_key:
+            raise LLMError(
+                f"{DEFAULTS[self.provider]['key']} is not set (add it to {ENV_FILE.name}) "
+                "and this request is not in the cache"
+            )
+        body = {
+            "systemInstruction": {"parts": [{"text": system}]},
+            "contents": contents,
+            "tools": [{"functionDeclarations": tools}],
+            "toolConfig": {"functionCallingConfig": {"mode": "AUTO"}},
+            "generationConfig": {"temperature": 0},
+        }
+        errors: list[str] = []
+        for model in [self.model] + ([self.fallback] if self.fallback else []):
+            started = time.perf_counter()
+            try:
+                data = self._post(f"{GEMINI_URL}/{model}:generateContent", body, gemini=True)
+            except QuotaExhausted:
+                raise
+            except LLMError as error:
+                errors.append(f"{model}: {error}")
+                continue
+            candidates = data.get("candidates") or []
+            if not candidates:
+                errors.append(f"{model}: no candidates: {data.get('promptFeedback')}")
+                continue
+            usage = dict(data.get("usageMetadata", {}))
+            if data.get("modelVersion"):
+                usage["model_version"] = data["modelVersion"]
+            response = {
+                "parts": candidates[0].get("content", {}).get("parts", []),
+                "provider": self.provider,
+                "model": model,
+                "usage": usage,
+                "latency_s": round(time.perf_counter() - started, 3),
+            }
+            self._cache_write(key, response)
+            return ToolTurn(**response, cached=False)
+        raise LLMError("; ".join(errors))
 
     # -- providers ------------------------------------------------------------------------
 

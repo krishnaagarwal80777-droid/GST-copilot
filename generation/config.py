@@ -33,3 +33,7 @@ class GenerationConfig:
     strict_claims: bool = False
     # Generator prompt variant (generation.prompts.PROMPT_VARIANTS).
     prompt_variant: str = "baseline"
+    # Calculator routing (generation.tools_router): a planner turn may call rate_lookup and
+    # gst_split, and every number in the answer must come from a tool output or cited text.
+    # Off for the eval configs (results stay comparable); the API turns it on.
+    tools: bool = False

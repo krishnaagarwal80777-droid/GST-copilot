@@ -12,6 +12,13 @@
    ``strict_claims`` (output guardrail) the output must have every schema field, and any
    claim without a context citation abstains instead.
 6. Render the fixed template, or the abstention template with the closest provisions.
+
+With ``tools`` (calculator routing, generation.tools_router; on in the API, off in the eval
+configs) a planner turn runs first. When it calls a tool, the tool outputs become TOOL-<n>
+context chunks and replace the gates: the retrieved provisions are added only when the gates
+pass. A refused, ambiguous or failed final tool call abstains. In tools mode every number in
+the answer's claims and assumptions must appear in a tool output, a cited chunk or the
+question, otherwise the answer abstains (``unsupported_number``).
 """
 
 from __future__ import annotations
@@ -31,11 +38,29 @@ from generation.prompts import generator_prompt, generator_system
 from generation.render import render_abstention, render_answer
 from generation.schemas import GenerationOutput, StrictGenerationOutput, response_schema
 from generation.timing import TimedReranker, ms
+from generation.tools_router import (
+    TOOL_ANSWER_RULES,
+    ToolCall,
+    ToolRun,
+    plan_and_run,
+    provisions_by_path,
+    tool_chunks,
+    unsupported_numbers,
+)
 from generation.verify import Verified, verify
 from retrieval.pipeline import Retriever
 
 AbstainReason = Literal[
-    "horizon", "gate", "model", "no_supported_claims", "unsupported_claim", "invalid_output"
+    "horizon",
+    "gate",
+    "model",
+    "no_supported_claims",
+    "unsupported_claim",
+    "invalid_output",
+    "ambiguous_lookup",
+    "not_found",
+    "tool_error",
+    "unsupported_number",
 ]
 ABSTAIN_TEXT: dict[str, str] = {
     "horizon": (
@@ -49,6 +74,13 @@ ABSTAIN_TEXT: dict[str, str] = {
         "A statement in the draft answer did not cite a retrieved provision, so no answer is given."
     ),
     "invalid_output": "The answer could not be produced in the required structured form.",
+    "ambiguous_lookup": "More than one rate-schedule entry matches, so no rate is given.",
+    "not_found": "No rate-schedule entry in force on the reference date matches.",
+    "tool_error": "A calculator call failed, so no answer is given.",
+    "unsupported_number": (
+        "The draft answer contained a number that is not in the calculator output or the cited "
+        "provisions ({numbers}), so no answer is given."
+    ),
 }
 
 
@@ -72,9 +104,18 @@ class AnswerResult:
     # Stage -> milliseconds (generation.timing.STAGES); retrieve and rerank are filled only
     # when this call built the context.
     timings_ms: dict[str, float] = field(default_factory=dict)
+    # Calculator routing only (GenerationConfig.tools): the tool calls made (ToolCall.to_dict)
+    # and one llm entry per planner turn. Left out of to_dict when empty, so eval records
+    # without tools are unchanged.
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    plan_llm: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        for key in ("tool_calls", "plan_llm"):
+            if not data[key]:
+                del data[key]
+        return data
 
     @property
     def cited_paths(self) -> list[str]:
@@ -96,6 +137,7 @@ class Answerer:
         self.generator = generator
         self.config = config or GenerationConfig()
         self._horizons = horizons
+        self._provisions: dict[str, list[dict]] | None = None
         if retriever is not None and retriever.reranker is not None:
             if not isinstance(retriever.reranker, TimedReranker):
                 retriever.reranker = TimedReranker(retriever.reranker)
@@ -109,6 +151,36 @@ class Answerer:
 
     def prompt(self, question: str, ref_date: date, chunks: list[Chunk]) -> str:
         return generator_prompt(question, ref_date, chunks)
+
+    @property
+    def provisions(self) -> dict[str, list[dict]] | None:
+        """Index rows by path (for gst_split's citations); None without a row table."""
+        if self._provisions is None and hasattr(self.retriever, "_table"):
+            from retrieval.pipeline import PROVISIONS_TABLE
+
+            self._provisions = provisions_by_path(self.retriever._table(PROVISIONS_TABLE))
+        return self._provisions
+
+    def plan_tools(self, question: str, ref_date: date) -> ToolRun:
+        return plan_and_run(self.generator, question, ref_date, self.provisions)
+
+    def _gate_reason(
+        self, chunks: list[Chunk], context: Context, ref_date: date
+    ) -> tuple[AbstainReason, str | None] | None:
+        """Why the confidence gate or the date gate stops this context, or None."""
+        if not chunks or (self.config.gate and context.confidence < self.config.abstain_threshold):
+            return "gate", None
+        if self.config.date_gate:
+            source = chunks[0].doc_type
+            horizon = self.horizons.get(source)
+            if horizon is not None and ref_date > horizon:
+                text = ABSTAIN_TEXT["horizon"].format(
+                    ref_date=ref_date.isoformat(),
+                    horizon=horizon.isoformat(),
+                    source=SOURCE_LABELS[source],
+                )
+                return "horizon", text
+        return None
 
     def retrieve(
         self, question: str, ref_date: date, *, known_by: date | None = None
@@ -147,26 +219,35 @@ class Answerer:
             "timings_ms": timings,
         }
 
+        tools: dict[str, Any] = {}  # tool_calls and plan_llm, when calculator routing ran
+
         def abstain(reason: AbstainReason, text: str | None = None, **extra: Any) -> AnswerResult:
             rendered = render_abstention(text or ABSTAIN_TEXT[reason], ref_date, chunks)
             return AnswerResult(
-                **base, abstained=True, abstain_reason=reason, rendered=rendered, **extra
+                **base, abstained=True, abstain_reason=reason, rendered=rendered, **extra, **tools
             )
 
-        if not chunks or (self.config.gate and context.confidence < self.config.abstain_threshold):
-            return abstain("gate")
-        if self.config.date_gate:
-            source = chunks[0].doc_type
-            horizon = self.horizons.get(source)
-            if horizon is not None and ref_date > horizon:
-                text = ABSTAIN_TEXT["horizon"].format(
-                    ref_date=ref_date.isoformat(),
-                    horizon=horizon.isoformat(),
-                    source=SOURCE_LABELS[source],
-                )
-                return abstain("horizon", text)
+        used_tools = False
+        if self.config.tools and not dry_run:
+            run = self.plan_tools(question, ref_date)
+            timings.update(plan=run.plan_ms, tools=run.tools_ms)
+            tools = {"tool_calls": [call.to_dict() for call in run.calls], "plan_llm": run.llm}
+            used_tools = bool(run.calls)
+        if used_tools:
+            problem = tool_problem(run.calls)
+            if problem:
+                return abstain(*problem)
+            # The retrieved provisions join the calculator outputs only when the gates pass.
+            law = chunks if self._gate_reason(chunks, context, ref_date) is None else []
+            chunks = tool_chunks(run.calls, ref_date) + law
+        else:
+            stop = self._gate_reason(chunks, context, ref_date)
+            if stop:
+                return abstain(*stop)
         prompt = self.prompt(question, ref_date, chunks)
         system = generator_system(self.config.prompt_variant)
+        if used_tools:
+            system += TOOL_ANSWER_RULES
         schema = response_schema(self.config.prompt_variant)
         if dry_run:
             count = self.generator.count_tokens(system, prompt)
@@ -214,7 +295,7 @@ class Answerer:
             "llm": llm,
         }
         if self.config.strict_claims:
-            allowed = set(base["context_ids"])
+            allowed = {chunk.id for chunk in chunks}  # the retrieved context, plus any TOOL- chunks
             if checked.dropped_claims or any(
                 not allowed & set(claim.citation_ids) for claim in checked.claims
             ):
@@ -223,6 +304,15 @@ class Answerer:
         if not checked.claims:
             timings["verify"] = ms(time.perf_counter() - started)
             return abstain("no_supported_claims", **dumped)
+        if self.config.tools:
+            cited = {cid for claim in checked.claims for cid in claim.citation_ids}
+            sources = [c.text for c in chunks if c.id in cited or c.doc_type == "tool"]
+            written = [claim.text for claim in checked.claims] + list(output.assumptions)
+            missing = unsupported_numbers(written, [*sources, question])
+            if missing:
+                timings["verify"] = ms(time.perf_counter() - started)
+                text = ABSTAIN_TEXT["unsupported_number"].format(numbers=", ".join(missing))
+                return abstain("unsupported_number", text, **dumped)
         # Rendering states the reference date the pipeline used, whatever the model wrote.
         rendered = render_answer(checked.claims, output.assumptions, ref_date, chunks)
         timings["verify"] = ms(time.perf_counter() - started)
@@ -234,4 +324,27 @@ class Answerer:
             claims=[claim.model_dump() for claim in checked.claims],
             assumptions=output.assumptions,
             **dumped,
+            **tools,
         )
+
+
+def tool_problem(calls: list[ToolCall]) -> tuple[AbstainReason, str] | None:
+    """Abstention for the last call of each tool when it failed, was refused or found no
+    single row (an earlier ambiguous lookup that the planner then narrowed does not count)."""
+    last = {call.name: call for call in calls}
+    for call in last.values():
+        if not call.ok:
+            return "tool_error", f"{ABSTAIN_TEXT['tool_error'][:-1]} ({call.name}: {call.error})."
+        status = call.output["status"]
+        if status == "refused":
+            return "horizon", " ".join(call.output["notes"])
+        if status == "ambiguous":
+            options = "; ".join(
+                f"Notification {c['notification']} Schedule {c['schedule']} S. No. {c['s_no']} "
+                f"({c['tariff']} {c['description'][:80]}): central tax {c['rate']}"
+                for c in call.output["candidates"]
+            )
+            return "ambiguous_lookup", f"{ABSTAIN_TEXT['ambiguous_lookup']} Candidates: {options}."
+        if status == "not_found":
+            return "not_found", ABSTAIN_TEXT["not_found"]
+    return None

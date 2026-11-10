@@ -4,8 +4,10 @@ Fields: request_id, timestamp (UTC), question_sha256 and question_chars (never t
 reference_date, knowledge_date, timings_ms (retrieve, rerank, generate, verify, total; a stage
 that did not run is absent), retrieved_ids (the generator context), gate_score (best
 cross-encoder score), abstained, abstain_reason, guardrail, model, input_tokens,
-output_tokens, cost_usd, cache_hit, status ("ok" or "error"). No API keys, prompts or model
-output are written.
+output_tokens, cost_usd, cache_hit, status ("ok" or "error"). With calculator routing:
+tool_calls (one {name, latency_ms, success} per call), planner_calls, planner_input_tokens,
+planner_output_tokens and planner_cost_usd; cost_usd then includes the planner turns. No API
+keys, prompts or model output are written (tool arguments and results are not logged).
 
 cost_usd is the list-price cost of the generator call (observability.config); 0 when no call
 was made or the answer came from the disk cache, None for a model without a price. Tokens are
@@ -55,6 +57,23 @@ def llm_fields(llm: dict[str, Any] | None) -> dict[str, Any]:
         "output_tokens": output_tokens,
         "cost_usd": cost,
         "cache_hit": cached,
+    }
+
+
+def planner_fields(turns: list[dict[str, Any]]) -> dict[str, Any]:
+    """Token and cost totals of the calculator planner's turns (a cached turn costs 0)."""
+    tokens_in = tokens_out = 0
+    cost: float | None = 0.0
+    for turn in turns:
+        fields = llm_fields(turn)
+        tokens_in += fields["input_tokens"]
+        tokens_out += fields["output_tokens"]
+        cost = None if cost is None or fields["cost_usd"] is None else cost + fields["cost_usd"]
+    return {
+        "planner_calls": len(turns),
+        "planner_input_tokens": tokens_in,
+        "planner_output_tokens": tokens_out,
+        "planner_cost_usd": None if cost is None else round(cost, 8),
     }
 
 

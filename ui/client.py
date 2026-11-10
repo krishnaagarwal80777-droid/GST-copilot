@@ -65,6 +65,29 @@ def claims_markdown(response: dict[str, Any]) -> str:
     return "\n".join(lines).strip()
 
 
+def calculation_markdown(response: dict[str, Any]) -> str:
+    """The calculator calls of a response: tool, arguments, result, steps and notes."""
+    lines: list[str] = []
+    for number, call in enumerate(response.get("tool_calls") or [], 1):
+        args = ", ".join(f"{k}={v}" for k, v in call["arguments"].items())
+        status = call["status"] if call["ok"] else f"failed: {call['error']}"
+        lines.append(
+            f"**{number}. `{call['name']}`({args})** - {status}, {call['latency_ms']:.0f} ms"
+        )
+        for key, value in (call.get("result") or {}).items():
+            lines.append(f"- {key}: `{value}`")
+        for candidate in call.get("candidates") or []:
+            lines.append(
+                f"- candidate: Notification {candidate['notification']} Schedule "
+                f"{candidate['schedule']} S. No. {candidate['s_no']} ({candidate['description']}): "
+                f"{candidate['rate']}"
+            )
+        lines += [f"  - step: {step}" for step in call.get("steps") or []]
+        lines += [f"  - note: {note}" for note in call.get("notes") or []]
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
 def validity(citation: dict[str, Any]) -> str:
     if citation["effective_to"] is None:
         return f"in force from {citation['effective_from']} (still in force)"
