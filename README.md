@@ -19,8 +19,9 @@ versioned document corpus.
 | Guardrail refusal precision / recall | 0.909 / 1.000 (30-question guardrail set) |
 | Generator cost per request (estimate) | about $0.0018 at list price; $0 on the Gemini free tier |
 
-Main test run with calculator tools off; calculator results reported separately (the
-calculation eval has not been run yet).
+Main test run with calculator tools off; calculator results reported separately. On a
+hand-written calculation set (n=15): tool selection 14/15, arguments 13/14, final-number exact
+match 5/12 (see [docs/RESULTS.md](docs/RESULTS.md), section 8).
 
 <sub>Shipped API config replayed on the frozen test answers: 0/64 outcomes changed
 (guardrails, strict_claims, number check). Tool selection on test was not replayed; see
