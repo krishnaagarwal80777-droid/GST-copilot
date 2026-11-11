@@ -108,6 +108,8 @@ class AskResponse(BaseModel):
     model: str | None  # the generator that answered; None when no LLM call was made
     # Calculator calls made for this answer, in order (empty when no tool was used).
     tool_calls: list[ToolCallOut] = Field(default_factory=list)
+    # A rate lookup did not give a single row, so the answer comes from the retrieved provisions.
+    tool_fallback: bool = False
 
 
 class Health(BaseModel):

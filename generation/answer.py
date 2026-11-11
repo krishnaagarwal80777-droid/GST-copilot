@@ -16,7 +16,9 @@
 With ``tools`` (calculator routing, generation.tools_router; on in the API, off in the eval
 configs) a planner turn runs first. When it calls a tool, the tool outputs become TOOL-<n>
 context chunks and replace the gates: the retrieved provisions are added only when the gates
-pass. A refused, ambiguous or failed final tool call abstains. When a tool ran, every number
+pass. A rate_lookup that fails, finds no row or finds several (or is refused) falls back to
+the no-tool path, so a tool failure never causes an abstention that path would not make; a
+failed gst_split abstains (the no-tool path cannot compute). When a tool ran, every number
 in the answer's claims and assumptions must appear in a tool output, a cited chunk or the
 question, otherwise the answer abstains (``unsupported_number``). Answers that used no tool
 are checked as before (citations, and strict_claims when on), not for numbers.
@@ -110,10 +112,11 @@ class AnswerResult:
     # without tools are unchanged.
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     plan_llm: list[dict[str, Any]] = field(default_factory=list)
+    tool_fallback: bool = False  # a rate_lookup failed and the no-tool path answered
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
-        for key in ("tool_calls", "plan_llm"):
+        for key in ("tool_calls", "plan_llm", "tool_fallback"):
             if not data[key]:
                 del data[key]
         return data
@@ -234,6 +237,10 @@ class Answerer:
             timings.update(plan=run.plan_ms, tools=run.tools_ms)
             tools = {"tool_calls": [call.to_dict() for call in run.calls], "plan_llm": run.llm}
             used_tools = bool(run.calls)
+        if used_tools and lookup_failed(run.calls):
+            # Answer as the no-tool pipeline would, from the retrieved schedule rows.
+            used_tools = False
+            tools["tool_fallback"] = True
         if used_tools:
             problem = tool_problem(run.calls)
             if problem:
@@ -327,6 +334,18 @@ class Answerer:
             **dumped,
             **tools,
         )
+
+
+def lookup_failed(calls: list[ToolCall]) -> bool:
+    """The last rate_lookup failed, was refused or did not find exactly one row, and no
+    gst_split succeeded (a split from a rate stated in the question still stands)."""
+    lookups = [call for call in calls if call.name == "rate_lookup"]
+    if not lookups:
+        return False
+    last = lookups[-1]
+    if last.ok and last.output["status"] == "ok":
+        return False
+    return not any(call.name == "gst_split" and call.ok for call in calls)
 
 
 def tool_problem(calls: list[ToolCall]) -> tuple[AbstainReason, str] | None:

@@ -143,6 +143,7 @@ class AskService:
             **llm_fields(None),
             **planner_fields([]),
             "tool_calls": [],
+            "tool_fallback": False,
             "status": "error",
         }
         try:
@@ -185,6 +186,7 @@ class AskService:
                 {"name": c["name"], "latency_ms": c["latency_ms"], "success": c["ok"]}
                 for c in result.tool_calls
             ],
+            tool_fallback=result.tool_fallback,
         )
         if trace["cost_usd"] is not None and trace["planner_cost_usd"] is not None:
             trace["cost_usd"] = round(trace["cost_usd"] + trace["planner_cost_usd"], 8)
@@ -205,6 +207,7 @@ class AskService:
             timings_ms={**trace["timings_ms"], "total": ms(time.perf_counter() - started)},
             model=trace["model"],
             tool_calls=tool_calls_out(result),
+            tool_fallback=result.tool_fallback,
         )
 
     def _refuse(

@@ -95,19 +95,39 @@ def test_a_number_not_in_any_tool_output_abstains() -> None:
     assert "4600.00" in result.rendered
 
 
-def test_ambiguous_lookup_abstains_with_candidates_and_no_answer_call() -> None:
-    generator = ScriptedGenerator([[{"name": "rate_lookup", "args": {"hsn": "7317"}}]])
+ROW_ANSWER = claims(("The rate is in the schedule row.", ["CTR/9-2025/schI@v1#3"]))
+
+
+def test_ambiguous_lookup_falls_back_to_the_no_tool_answer() -> None:
+    ambiguous = [[{"name": "rate_lookup", "args": {"hsn": "7317"}}]]
+    generator = ScriptedGenerator(ambiguous, ROW_ANSWER)
     result = answerer(generator).answer("What is the rate on HSN 7317?", DAY)
-    assert result.abstained and result.abstain_reason == "ambiguous_lookup"
-    assert "S. No. 412" in result.rendered and "S. No. 295" in result.rendered
-    assert generator.final_prompts == []
+    assert not result.abstained and result.tool_fallback
+    assert result.tool_calls[0]["output"]["status"] == "ambiguous"
+    system, prompt = generator.final_prompts[0]
+    assert "TOOL-" not in prompt and "TOOL- are calculator outputs" not in system
+    # Same answer as the pipeline without tools.
+    plain = answerer(ScriptedGenerator([], ROW_ANSWER), tools=False).answer(
+        "What is the rate on HSN 7317?", DAY
+    )
+    assert (result.abstained, result.rendered) == (plain.abstained, plain.rendered)
 
 
-def test_lookup_after_the_rates_horizon_is_refused() -> None:
-    generator = ScriptedGenerator([[LOOKUP]])
-    result = answerer(generator).answer("Rate on ferro-alloys?", date(2026, 3, 1))
-    assert result.abstained and result.abstain_reason == "horizon"
-    assert "after 2026-01-31" in result.rendered
+def test_failed_lookup_call_falls_back_too() -> None:
+    bad = [[{"name": "rate_lookup", "args": {"hsn": "1"}}]]  # fewer than 2 digits
+    result = answerer(ScriptedGenerator(bad, ROW_ANSWER)).answer("Rate on HSN 1?", DAY)
+    assert not result.abstained and result.tool_fallback
+    assert result.tool_calls[0]["ok"] is False
+
+
+def test_refused_lookup_falls_back_and_the_date_gate_decides() -> None:
+    horizons = {"rule": date(2026, 1, 31), "notification": date(2026, 1, 31)}
+    config = GenerationConfig(tools=True, strict_claims=True)
+    generator = ScriptedGenerator([[LOOKUP]], ROW_ANSWER)
+    gated = Answerer(FakeRetriever(), generator, config, horizons=horizons)
+    result = gated.answer("Rate on ferro-alloys?", date(2026, 3, 1))
+    assert result.abstained and result.abstain_reason == "horizon" and result.tool_fallback
+    assert "after 2026-01-31" in result.rendered and generator.final_prompts == []
 
 
 def test_invalid_arguments_are_a_failed_call() -> None:
