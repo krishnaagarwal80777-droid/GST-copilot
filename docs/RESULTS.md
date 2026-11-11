@@ -393,55 +393,76 @@ input guardrails, strict_claims and the number check; tool selection was not rep
 ### Calculation set (n=15, through the API)
 
 The 15 questions were written for the tools, with expected outputs worked out by hand. They are
-separate from the frozen main eval, which ran with the tools off.
+separate from the frozen main eval, which ran with the tools off. v2 is the run after the fixes
+below; the set had been seen once (v1) before those fixes, so v2 is not an independent test.
 
-| Metric | Result |
-|---|---|
-| Tool selection (the expected tools, in order) | 14/15 = 0.933 |
-| Arguments (over items that expect a tool) | 13/14 = 0.929 |
-| Final numbers: every expected number appears in the answer | 5/12 = 0.417 |
-| Outcome (answered or abstained as expected) | 13/15 = 0.867 |
+| Metric | v1 | v2 |
+|---|---|---|
+| Tool selection (the expected tools, in order) | 14/15 = 0.933 | 15/15 = 1.0 |
+| Arguments (over items that expect a tool) | 13/14 = 0.929 | 14/14 = 1.0 |
+| Final numbers, strict: every expected number appears in the answer | 5/12 = 0.417 | 6/12 = 0.5 |
+| Requested amounts correct: every field the question asks for appears in the answer | 10/12 = 0.833 | 10/12 = 0.833 |
+| Outcome (answered or abstained as expected) | 13/15 = 0.867 | 12/15 = 0.8 |
 
-<!-- Source: eval/results/calc.csv (run 2026-11-11T08:09:50+00:00) and
-eval/results/calc_items.jsonl; questions and hand calculations in eval/questions_calc.jsonl. -->
+<!-- Source: eval/results/calc.csv: v1 row 2026-11-11T08:09:50+00:00 and its rescored row
+2026-11-11T08:48:05+00:00 (requested amounts), v2 row 2026-11-11T09:05:49+00:00; per item in
+eval/results/calc_items.jsonl (v1) and eval/results/calc_items_v2.jsonl (v2); questions,
+hand calculations and requested_fields in eval/questions_calc.jsonl. -->
 
-Failures:
+The `requested_fields` column (the fields each question's wording asks for, such as CGST and
+SGST) was added to eval/questions_calc.jsonl after the first run; the expected values were not
+changed. The v1 figure for requested amounts is the first run's recorded answers scored again.
+
+Failures in v2:
 
 | Item | What happened |
 |---|---|
-| calc-04 | The question stated the rate (5%), but the planner called `rate_lookup` with the query "GST 5%" instead of `gst_split`. The lookup was ambiguous and the answer abstained. |
-| calc-05 | `gst_split` was called correctly, but the generator abstained ("model") instead of quoting the tool output. |
-| calc-01, 02, 03, 06, 13 | Each answer gave the amounts the question asked for, correctly, but left out totals that the expected list also included (for example the invoice total). |
+| calc-05, calc-13 | The tools were called correctly and returned the expected amounts, but the generator abstained ("model") instead of quoting them. calc-13 answered in v1. |
+| calc-11 | The HSN 7317 lookup is ambiguous (two rows). The answer now falls back to the no-tool path and states both candidate rows with their rates and citations, where the set expected an abstention. |
+| calc-01, 02, 03, 06 | Correct requested amounts, but totals that the strict expected list also included were left out. |
 
-No answer contained a number that was not in a tool output.
+calc-04, the v1 tool-selection failure (`rate_lookup` called for a question that stated the
+rate), now calls `gst_split` and answers correctly. No answer contained a number that was not
+in a tool output or a cited provision.
 
 ### Routing on the 24 dev rate questions (tools on, no judge)
 
-| Measure | Result |
-|---|---|
-| Routed to `rate_lookup` | 24/24 |
-| Lookup returned a single row | 13/24 |
-| That row's rate equals the gold rate | 12/13 |
-| Answer states the gold rate | 13/24 (dev v4, tools off: 24/24 correct) |
-| Items whose outcome differs from dev v4 | 11 |
+| Measure | v1 | v2 (after the fixes) |
+|---|---|---|
+| Routed to `rate_lookup` | 24/24 | 24/24 |
+| Lookup returned a single row | 13/24 | 24/24 |
+| That row's rate equals the gold rate | 12/13 | 24/24 |
+| Answer states the gold rate | 13/24 | 24/24 (dev v4, tools off: 24/24 correct) |
+| Items whose outcome differs from dev v4 | 11 | 0 |
+| Answers that fell back to the no-tool path | n/a | 0 |
 
-<!-- Source: eval/results/tool_routing_dev.csv (run 2026-11-11T08:22:43+00:00) and
-eval/results/tool_routing_dev.jsonl; dev v4 from generation_dev_v4_judge-v2_items.jsonl. -->
+<!-- Source: eval/results/tool_routing_dev.csv (v1 row 2026-11-11T08:22:43+00:00, v2 row
+2026-11-11T09:00:42+00:00) and eval/results/tool_routing_dev.jsonl (v1),
+eval/results/tool_routing_dev_v2.jsonl (v2); dev v4 from generation_dev_v4_judge-v2_items.jsonl. -->
 
-Why the 11 differ:
+**The v1 regression is fixed.** With the tools on, v1 stated the gold rate on 13/24 dev rate
+questions where the frozen pipeline without tools got 24/24. Its causes:
 - **9 failed calls:** the templated questions quote both the goods description and the tariff
-  code, and the planner passed both. `rate_lookup` accepts exactly one of them, so it rejected
-  the call.
-- **2 ambiguous lookups:** "air-conditioning machines" matches more than one schedule row, on
-  both dates.
-- **1 wrong row, not counted among the 11:** for tractors on 2025-10-01, word matching picked
-  the "road tractors for semi-trailers" row (9%), because the words of the exclusion "other than
-  road tractors…" also matched. The answer still stated the gold 2.5% by citing the retrieved
-  schedule row.
+  code, and the planner passed both, but `rate_lookup` accepted only one.
+- **2 ambiguous lookups:** "air-conditioning machines" matched two rows on both dates.
+- **1 wrong row:** tractors on 2025-10-01 matched the "road tractors" row, because the words of
+  the exclusion "other than road tractors…" also matched. The answer still stated the gold rate
+  from the retrieved row.
 
-**Plain reading:** with the tools on, the API answers the dev rate questions worse than the
-frozen pipeline without tools. The rate questions should not be routed through `rate_lookup`
-until it accepts a description and a tariff code together and handles exclusions.
+The fixes:
+- **Description and HSN together:** `rate_lookup` takes both. The most specific HSN match
+  takes priority, and the description chooses among rows with that HSN.
+- **Exclusions on both sides:** "other than", "excluding" and "except" clauses are set aside in
+  the query and in each row. A row whose own text is what the query excludes is dropped, and a
+  row that names the goods only in its exclusion is not a match.
+- **Leading words:** among the remaining rows, an exact match wins, then a row whose
+  description begins with the query's words.
+- **Planner:** if the question states a rate, it calls `gst_split` directly, not `rate_lookup`.
+- **Fallback:** a `rate_lookup` that fails, finds no row or finds several now falls back to the
+  no-tool answer, so a tool failure never causes an abstention the no-tool pipeline would not
+  make.
+
+v2: 24/24, with no item differing from dev v4.
 
 ### Limits of the tools
 
@@ -451,7 +472,8 @@ until it accepts a description and a tariff code together and handles exclusions
 - **Combined rate:** `combined_rate` is twice the central rate, which assumes the State rate
   equals the central rate. The State GST Acts and the IGST rate notifications are not indexed.
 - **Ambiguous matches:** a lookup that matches more than one row returns every candidate and no
-  rate, and the answer abstains.
+  rate. The answer then falls back to the no-tool path, which can state the candidate rows with
+  their rates (calc-11) rather than abstain.
 - **No citation for `gst_split`:** the IGST Act and the State GST Acts are not in the index,
   and CGST section 9(1) is only an unverified snapshot row there, so the split cites nothing and
   says so in a note.
