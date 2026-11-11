@@ -20,7 +20,13 @@ if str(ROOT) not in sys.path:  # streamlit puts only ui/ on the path
 
 from observability.config import LOG_PATH  # noqa: E402
 from observability.report import load, summarize  # noqa: E402
-from ui.client import API_URL, ask, calculation_markdown, claims_markdown, validity  # noqa: E402
+from ui.client import (  # noqa: E402
+    API_URL,
+    ask,
+    calculation_markdown,
+    citation_title,
+    claims_markdown,
+)
 
 st.set_page_config(page_title="GST Tax Copilot", layout="wide")
 st.title("GST Tax Copilot")
@@ -70,8 +76,7 @@ with ask_tab:
                     st.markdown(f"**Reference date used:** {data['reference_date']}")
                     st.subheader("Citations")
                     for citation in data["citations"]:
-                        title = f"[{citation['number']}] {citation['label']} ({validity(citation)})"
-                        with st.expander(title):
+                        with st.expander(citation_title(citation)):
                             st.markdown(f"`{citation['version_id']}`  ·  {citation['doc_type']}")
                             st.text(citation["text"])
                             if citation["source_url"]:
@@ -80,6 +85,11 @@ with ask_tab:
                                 )
                             elif citation["source_file"]:
                                 st.markdown(f"Source file: `{citation['source_file']}`")
+                if data.get("tool_fallback"):
+                    st.caption(
+                        "The rate lookup did not find a single schedule row, so this answer "
+                        "comes from the retrieved provisions."
+                    )
                 if data.get("tool_calls"):
                     with st.expander("Calculation", expanded=True):
                         st.caption(

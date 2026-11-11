@@ -6,7 +6,7 @@ from pathlib import Path
 
 import httpx
 
-from ui.client import ask, claims_markdown, validity
+from ui.client import ask, citation_title, claims_markdown, validity
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -78,3 +78,19 @@ def test_streamlit_app_renders_without_the_api(monkeypatch, tmp_path) -> None:
     assert not app.exception
     assert [tab.label for tab in app.tabs] == ["Ask", "Observability"]
     assert app.button  # the form's Ask button
+
+
+def test_citation_title_for_tools_and_provisions() -> None:
+    tool = {"number": 2, "doc_type": "tool", "path": "TOOL/gst_split", "label": "Calculation"}
+    assert citation_title(tool) == "[2] calculator output (gst_split)"
+    rule = {
+        "number": 1,
+        "doc_type": "rule",
+        "path": "CGST/r36/ss4",
+        "label": "CGST Rules, rule 36(4)",
+        "effective_from": "2021-05-18",
+        "effective_to": None,
+    }
+    assert citation_title(rule) == (
+        "[1] CGST Rules, rule 36(4) (in force from 2021-05-18 (still in force))"
+    )

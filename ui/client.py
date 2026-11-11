@@ -88,6 +88,14 @@ def calculation_markdown(response: dict[str, Any]) -> str:
     return "\n".join(lines).strip()
 
 
+def citation_title(citation: dict[str, Any]) -> str:
+    """Expander title: provisions show their in-force dates, calculator outputs do not."""
+    if citation["doc_type"] == "tool":
+        tool = citation["path"].split("/", 1)[-1]
+        return f"[{citation['number']}] calculator output ({tool})"
+    return f"[{citation['number']}] {citation['label']} ({validity(citation)})"
+
+
 def validity(citation: dict[str, Any]) -> str:
     if citation["effective_to"] is None:
         return f"in force from {citation['effective_from']} (still in force)"
