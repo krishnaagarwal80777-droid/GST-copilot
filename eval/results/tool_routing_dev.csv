@@ -1,0 +1,2 @@
+timestamp,git_hash,n,routed_to_rate_lookup,lookup_single_row,lookup_rate_is_gold,answer_states_gold_rate_routed,answer_states_gold_rate_all,differs_from_v4
+2026-11-11T08:22:43+00:00,db8037f-dirty,24,24,13,12,13,13,11
