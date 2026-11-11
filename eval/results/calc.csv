@@ -1,2 +1,4 @@
-timestamp,git_hash,n,tool_selection,tool_selection_rate,arguments,arguments_rate,final_numbers,final_numbers_rate,outcome,outcome_rate
-2026-11-11T08:09:50+00:00,a84937f,15,14/15,0.933,13/14,0.929,5/12,0.417,13/15,0.867
+timestamp,git_hash,n,tool_selection,tool_selection_rate,arguments,arguments_rate,final_numbers,final_numbers_rate,outcome,outcome_rate,requested_amounts,requested_amounts_rate,note
+2026-11-11T08:09:50+00:00,a84937f,15,14/15,0.933,13/14,0.929,5/12,0.417,13/15,0.867,,,
+2026-11-11T08:48:05+00:00,596450f,15,14/15,0.933,13/14,0.929,5/12,0.417,13/15,0.867,10/12,0.833,v1 rescored with requested_fields (column added after the first run)
+2026-11-11T09:05:49+00:00,596450f-dirty,15,15/15,1.0,14/14,1.0,6/12,0.5,12/15,0.8,10/12,0.833,v2: after the rate-question fixes (calc set seen once before)
