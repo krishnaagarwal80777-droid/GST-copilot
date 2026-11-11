@@ -254,7 +254,7 @@ def test_lookup_arguments_are_validated() -> None:
     with pytest.raises(ValueError):
         look(on=DAY)
     with pytest.raises(ValueError):
-        look("x", hsn="1111", on=DAY)
+        look("  ", hsn="", on=DAY)
     with pytest.raises(ValueError):
         look(hsn="1", on=DAY)
 
@@ -268,3 +268,87 @@ def test_real_index_row() -> None:
     out = rate_lookup("ferro-alloys", on=date(2025, 12, 1))
     assert (out.result["rate"], out.result["schedule"], out.result["s_no"]) == ("9", "II", 261)
     assert out.citations == ["CTR/9-2025/schII@v1#261"]
+
+
+# --- description + HSN, exclusions, leading words (synthetic rows) -------------------------
+
+MORE = [
+    entry(11, "5555", "Delta devices", "2.5"),
+    entry(12, "5555", "Parts of delta devices", "9", schedule="II"),
+    entry(13, "6666", "Omega units (except heavy omega units of high capacity)", "2.5"),
+    entry(14, "6666", "Heavy omega units of high capacity", "9", schedule="II"),
+    entry(15, "7777", "Sigma frames, comprising a beam and a plate", "9", schedule="II"),
+    entry(
+        16,
+        "7778",
+        "Kappa items; other kappa items other than sigma frames of heading 7777",
+        "9",
+        schedule="II",
+    ),
+]
+
+
+def look_more(*args, **kwargs):
+    return rate_lookup(*args, entries=MORE, horizon=HORIZON, **kwargs)
+
+
+def test_description_and_hsn_together() -> None:
+    # The HSN alone gives two rows; the description chooses between them.
+    assert look_more(hsn="5555", on=DAY).status == "ambiguous"
+    both = look_more("parts of delta devices", hsn="5555", on=DAY)
+    assert both.status == "ok" and both.result["s_no"] == 12
+    # A single HSN row wins even if the description is worded differently.
+    assert look_more("kappa goods", hsn="7778", on=DAY).result["s_no"] == 16
+    # An HSN that matches nothing falls back to the description.
+    assert look_more("sigma frames", hsn="9999", on=DAY).result["s_no"] == 15
+
+
+def test_exclusions_do_not_match_the_excluded_row() -> None:
+    query = "omega units other than heavy omega units of high capacity"
+    out = look_more(query, on=DAY)
+    assert out.status == "ok" and out.result["s_no"] == 13
+    bracketed = look_more("omega units (excluding heavy omega units of high capacity)", on=DAY)
+    assert bracketed.result["s_no"] == 13
+
+
+def test_a_row_naming_the_goods_only_in_its_exclusion_is_not_a_match() -> None:
+    # Row 16 mentions sigma frames only in "other than sigma frames"; row 15 is the match.
+    out = look_more("sigma frames", on=DAY)
+    assert out.status == "ok" and out.result["s_no"] == 15
+
+
+def test_leading_words_choose_the_heading_row() -> None:
+    # "delta devices" is in both rows; only row 11 begins with it (row 12 is "Parts of ...").
+    out = look_more("delta devices", on=DAY)
+    assert out.status == "ok" and out.result["s_no"] == 11
+
+
+# --- real index rows (data/raw/ctr-1-2017_2017-06-28.pdf, ctr-09-2025_2025-09-17.pdf) -------
+
+
+def test_tractors_2025_do_not_return_the_road_tractors_row() -> None:
+    # 9/2025 Schedule I S. No. 442: "8701 Tractors (except road tractors for semi-trailers of
+    # engine capacity more than 1800 cc)"; Schedule II S. No. 531 is the road-tractors row.
+    query = (
+        "tractors other than road tractors for semi trailers of engine capacity more than 1800 cc"
+    )
+    out = rate_lookup(query, on=date(2025, 10, 1))
+    assert (out.result["rate"], out.result["schedule"], out.result["s_no"]) == ("2.5", "I", 442)
+    old = rate_lookup(query, on=date(2017, 7, 1))
+    assert (old.result["rate"], old.result["schedule"], old.result["s_no"]) == ("6", "II", 207)
+
+
+def test_air_conditioning_machines() -> None:
+    # 8415 "Air-conditioning machines, comprising a motor-driven fan ..."; the 8418 row names
+    # air-conditioning machines only in its "other than" clause.
+    new = rate_lookup("air-conditioning machines", on=date(2025, 10, 1))
+    assert (new.result["rate"], new.result["schedule"], new.result["s_no"]) == ("9", "II", 404)
+    old = rate_lookup("air-conditioning machines", on=date(2017, 7, 1))
+    assert (old.result["rate"], old.result["schedule"], old.result["s_no"]) == ("14", "IV", 119)
+
+
+def test_real_description_and_hsn_call() -> None:
+    # 9/2025 Schedule I S. No. 290: "4202 22 30 Hand bags and shopping bags, of jute"; the
+    # heading row 4202 (Schedule II) also covers 42022230 but is less specific.
+    out = rate_lookup("Hand bags and shopping bags, of jute", hsn="42022230", on=date(2025, 10, 1))
+    assert (out.result["rate"], out.result["schedule"], out.result["s_no"]) == ("2.5", "I", 290)

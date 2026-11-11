@@ -2,6 +2,7 @@
 
     rate_lookup("ferro-alloys", on=date(2025, 12, 1))
     rate_lookup(hsn="7202", on=date(2025, 12, 1))
+    rate_lookup("hand bags of jute", hsn="42022230", on=date(2025, 12, 1))
 
 Rows are the schedule entries of the indexed rate notifications (retrieval.corpus.
 RATE_NOTIFICATIONS, parsed by ingest.rate_schedule), each valid between its notification's
@@ -12,7 +13,13 @@ Matching never guesses:
   if none covers it, the rows whose code starts with the HSN. "Any Chapter" rows have no code
   and are never matched by HSN.
 - ``query``: the rows whose description contains every content word of the query (lower
-  case, simple plural folding). A row whose whole description equals the query wins.
+  case, simple plural folding). Exclusions ("other than X", "excluding X", "except X", "not
+  including X", up to a closing bracket or semicolon) are set aside on both sides: they do not
+  have to match, and a row whose own (non-excluded) text is what the query excludes is
+  dropped. Among the rows left, one whose words equal the query's wins, then one whose
+  description begins with the query's words.
+- Both: the HSN match takes priority; when it leaves more than one row, the description
+  chooses among them. An HSN that matches nothing falls back to the description.
 More than one remaining row returns status "ambiguous" with every candidate and no rate.
 
 After the rates horizon (generation.horizon) the lookup is refused with the date-gate
@@ -99,8 +106,21 @@ def rate_entries() -> tuple[RateEntry, ...]:
     return tuple(entries)
 
 
-def words(text: str) -> set[str]:
-    out = set()
+_EXCLUSION = re.compile(
+    r"\b(?:other\s+than|excluding|except(?:\s+for)?|not\s+including)\b([^)\];]*)",
+    re.IGNORECASE,
+)
+
+
+def split_exclusions(text: str) -> tuple[str, list[str]]:
+    """(text without its exclusion clauses, the excluded phrases)."""
+    excluded = [match.group(1) for match in _EXCLUSION.finditer(text)]
+    return _EXCLUSION.sub(" ", text), excluded
+
+
+def word_list(text: str) -> list[str]:
+    """Content words in order (lower case, simple plural folding, stopwords dropped)."""
+    out = []
     for word in re.findall(r"[a-z0-9]+", text.lower()):
         if word in STOPWORDS or (len(word) < 3 and not word.isdigit()):
             continue
@@ -108,8 +128,12 @@ def words(text: str) -> set[str]:
             word = word[:-2]
         elif len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
             word = word[:-1]
-        out.add(word)
+        out.append(word)
     return out
+
+
+def words(text: str) -> set[str]:
+    return set(word_list(text))
 
 
 def _by_hsn(hsn: str, rows: list[RateEntry]) -> tuple[list[RateEntry], str]:
@@ -132,20 +156,48 @@ def _by_hsn(hsn: str, rows: list[RateEntry]) -> tuple[list[RateEntry], str]:
 
 
 def _by_query(query: str, rows: list[RateEntry]) -> tuple[list[RateEntry], str]:
-    wanted = words(query)
+    positive, excluded = split_exclusions(query)
+    wanted_list = word_list(positive)
+    wanted = set(wanted_list)
     if not wanted:
         raise ValueError(f"query has no content words: {query!r}")
-    matches = [r for r in rows if wanted <= words(r.description)]
-    exact = [r for r in matches if words(r.description) == wanted]
+    unwanted = [words(phrase) for phrase in excluded if words(phrase)]
+    matches = []
+    for row in rows:
+        own = words(split_exclusions(row.description)[0])
+        if wanted <= own and not any(phrase <= own for phrase in unwanted):
+            matches.append(row)
+    how = f"description words {sorted(wanted)}"
+    if unwanted:
+        how += f" (excluding rows that are {[sorted(p) for p in unwanted]})"
+    if len(matches) <= 1:
+        return matches, f"{how}: rows whose description contains all of them"
+    exact = [r for r in matches if words(split_exclusions(r.description)[0]) == wanted]
     if len(exact) == 1:
-        return (
-            exact,
-            f"description words {sorted(wanted)}: one row's description is exactly these words",
-        )
-    return (
-        matches,
-        f"description words {sorted(wanted)}: rows whose description contains all of them",
-    )
+        return exact, f"{how}: one row's description is exactly these words"
+    starts = [
+        r
+        for r in matches
+        if word_list(split_exclusions(r.description)[0])[: len(wanted_list)] == wanted_list
+    ]
+    if len(starts) == 1:
+        return starts, f"{how}: one row's description begins with these words"
+    return matches, f"{how}: rows whose description contains all of them"
+
+
+def _match(query: str | None, hsn: str | None, rows: list[RateEntry]) -> tuple[list, str]:
+    if hsn is None:
+        return _by_query(query, rows)
+    found, how = _by_hsn(hsn, rows)
+    if query is None or len(found) == 1:
+        return found, how
+    if not found:
+        narrowed, by_words = _by_query(query, rows)
+        return narrowed, f"{how}: none; then by {by_words}"
+    narrowed, by_words = _by_query(query, found)
+    if narrowed:
+        return narrowed, f"{how}: {len(found)} rows; then by {by_words}"
+    return found, f"{how}; the description matched none of them"
 
 
 def _combined(rate: str) -> str:
@@ -162,9 +214,12 @@ def rate_lookup(
     entries: Sequence[RateEntry] | None = None,
     horizon: date | None = None,
 ) -> ToolResult:
-    """Central tax rate of the goods described by ``query`` or classified under ``hsn``."""
-    if (query is None) == (hsn is None):
-        raise ValueError("give exactly one of query or hsn")
+    """Central tax rate of the goods described by ``query``, classified under ``hsn``, or
+    both (the HSN takes priority; the description chooses among rows with that HSN)."""
+    query = query.strip() if query and query.strip() else None
+    hsn = hsn.strip() if hsn and hsn.strip() else None
+    if query is None and hsn is None:
+        raise ValueError("give query, hsn or both")
     if horizon is None:
         from generation.horizon import knowledge_horizons
 
@@ -186,7 +241,7 @@ def rate_lookup(
         f"Searched {len(pool)} schedule rows in force on {on.isoformat()} "
         f"(Notifications {', '.join(notifications)}-Central Tax (Rate))."
     ]
-    found, how = _by_hsn(hsn, pool) if hsn is not None else _by_query(query, pool)
+    found, how = _match(query, hsn, pool)
     steps.append(f"Matched by {how}: {len(found)} row(s).")
     if not found:
         return ToolResult(tool="rate_lookup", status="not_found", steps=steps)
