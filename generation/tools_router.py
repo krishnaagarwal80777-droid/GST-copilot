@@ -44,9 +44,10 @@ TOOL_DECLARATIONS: list[dict[str, Any]] = [
         "name": "rate_lookup",
         "description": (
             "Central tax rate of goods on the reference date, from the indexed rate schedules. "
-            "Give exactly one of query (the goods as described in the question) or hsn (an HSN "
-            "or tariff code). Returns rate (central tax, per cent) and combined_rate (CGST + "
-            "SGST, or IGST), or every candidate row when more than one matches."
+            "Give query (the goods as described in the question), hsn (an HSN or tariff code), "
+            "or both: the HSN takes priority and the description chooses among rows with that "
+            "HSN. Returns rate (central tax, per cent) and combined_rate (CGST + SGST, or IGST), "
+            "or every candidate row when more than one matches."
         ),
         "parameters": {
             "type": "OBJECT",
@@ -88,7 +89,8 @@ You route questions about Indian GST to calculator tools. You never compute a nu
 - rate_lookup: the central tax rate of goods on the reference date (by description or HSN).
 - gst_split: CGST/SGST (intra-State) or IGST (inter-State) amounts for a taxable value, or for \
 a tax-inclusive price with inclusive=true, at a combined GST rate.
-Call a tool only when the question asks for the rate of goods or for tax amounts. Copy every \
+Call a tool only when the question asks for the rate of goods or for tax amounts. If the \
+question states a rate, call gst_split directly, not rate_lookup. Copy every \
 argument from the question or from an earlier tool result exactly; when the rate comes from \
 rate_lookup, pass its combined_rate to gst_split. A supply within one State is intra; between \
 two States, or into or out of India, is inter. If rate_lookup returns candidates, a refusal or \
