@@ -7,7 +7,7 @@ tax rate (the leading "<rate> per cent" of the gold answer, compared as a value 
 numbers in the answer's claims)? The frozen dev v4 run (tools off, judge v2) had all 24
 correct; an item whose answer abstains or no longer states the gold rate would differ.
 
-    python -m eval.tool_routing   ->  eval/results/tool_routing_dev.jsonl and .csv (appended)
+    python -m eval.tool_routing [--tag v2]  ->  tool_routing_dev[_<tag>].jsonl, .csv (appended)
 """
 
 from __future__ import annotations
@@ -32,10 +32,17 @@ GOLD_RATE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s+per\s+cent")
 
 def gold_rate(answer: str) -> Decimal | None:
     match = GOLD_RATE.match(answer)
-    return Decimal(match.group(1)).normalize() if match else None
+    return Decimal(match.group(1)) if match else None
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Calculator routing on dev rate questions.")
+    parser.add_argument("--tag", default="", help="run label: tool_routing_dev_<tag>.jsonl")
+    args = parser.parse_args()
+    items_out = ITEMS_OUT.with_name(f"tool_routing_dev_{args.tag}.jsonl") if args.tag else ITEMS_OUT
+
     from api.app import default_answerer
     from api.config import ApiSettings
     from api.schemas import AskRequest
@@ -71,6 +78,7 @@ def main() -> None:
             "answer_states_gold_rate": not data["abstained"] and gold in written,
             "abstained": data["abstained"],
             "abstain_reason": data["abstain_reason"],
+            "tool_fallback": data.get("tool_fallback", False),
             "v4_correct": v4[key]["score"]["correct"],
             "response": data,
         }
@@ -81,13 +89,14 @@ def main() -> None:
             f"rate={found} gold={gold} answer_has_gold={record['answer_states_gold_rate']} "
             f"abstained={data['abstained']}({data['abstain_reason']})"
         )
-    with ITEMS_OUT.open("w", encoding="utf-8", newline="\n") as handle:
+    with items_out.open("w", encoding="utf-8", newline="\n") as handle:
         for record in records:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
     routed = [r for r in records if r["routed_to_rate_lookup"]]
     summary = {
         "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
         "git_hash": git_hash(),
+        "tag": args.tag,
         "n": len(records),
         "routed_to_rate_lookup": len(routed),
         "lookup_single_row": sum(r["lookup_status"] == "ok" for r in routed),
@@ -95,13 +104,18 @@ def main() -> None:
         "answer_states_gold_rate_routed": sum(r["answer_states_gold_rate"] for r in routed),
         "answer_states_gold_rate_all": sum(r["answer_states_gold_rate"] for r in records),
         "differs_from_v4": sum(r["differs_from_v4"] for r in records),
+        "tool_fallback": sum(bool(r["tool_fallback"]) for r in records),
     }
-    new = not SUMMARY_OUT.exists()
-    with SUMMARY_OUT.open("a", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(summary))
-        if new:
-            writer.writeheader()
-        writer.writerow(summary)
+    fields, rows = list(summary), []
+    if SUMMARY_OUT.exists():  # keep earlier rows; columns added later are empty on them
+        with SUMMARY_OUT.open(encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            rows = list(reader)
+            fields = list(dict.fromkeys([*(reader.fieldnames or []), *summary]))
+    with SUMMARY_OUT.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows([*rows, summary])
     print(json.dumps(summary, indent=1))
 
 
