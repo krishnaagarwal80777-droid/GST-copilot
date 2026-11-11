@@ -79,6 +79,10 @@ Embedding and reranker models from the retrieval code (not an eval/results file)
 answer came from the fallback gemini-3.1-flash-lite (generation.csv generator_model on the
 2026-11-10T07:47:09 row). -->
 
+**Calculator tools:** `rate_lookup` and `gst_split` are deterministic Python functions the
+generator can call in the API. Every evaluation in sections 2 to 5 ran with them off; section 8
+reports them separately.
+
 ### Metrics
 
 | Metric | Definition |
@@ -362,13 +366,6 @@ The guardrail set was scored once. Its patterns were not tuned on it.
 - **Cold start:** the first request loads the embedding and cross-encoder models; the README
   notes it takes 30 seconds or more.
 
-### Calculator tools
-
-Calculator tools (rate_lookup, gst_split) were added after the frozen evaluation. They are off
-in the eval harness and on in the API. The shipped-config replay on test (0/64 changed) covered
-input guardrails, strict_claims and the number check; tool selection was not replayed on test.
-Calculator results: pending (see next update).
-
 ### Cost (estimates)
 
 | Item | Value |
@@ -387,7 +384,81 @@ The first cost_log step (audit re-judge) may include calls made before the upgra
 
 ---
 
-## 8. Limitations and next steps
+## 8. Calculator tools
+
+Calculator tools (rate_lookup, gst_split) were added after the frozen evaluation. They are off
+in the eval harness and on in the API. The shipped-config replay on test (0/64 changed) covered
+input guardrails, strict_claims and the number check; tool selection was not replayed on test.
+
+### Calculation set (n=15, through the API)
+
+The 15 questions were written for the tools, with expected outputs worked out by hand. They are
+separate from the frozen main eval, which ran with the tools off.
+
+| Metric | Result |
+|---|---|
+| Tool selection (the expected tools, in order) | 14/15 = 0.933 |
+| Arguments (over items that expect a tool) | 13/14 = 0.929 |
+| Final numbers: every expected number appears in the answer | 5/12 = 0.417 |
+| Outcome (answered or abstained as expected) | 13/15 = 0.867 |
+
+<!-- Source: eval/results/calc.csv (run 2026-11-11T08:09:50+00:00) and
+eval/results/calc_items.jsonl; questions and hand calculations in eval/questions_calc.jsonl. -->
+
+Failures:
+
+| Item | What happened |
+|---|---|
+| calc-04 | The question stated the rate (5%), but the planner called `rate_lookup` with the query "GST 5%" instead of `gst_split`. The lookup was ambiguous and the answer abstained. |
+| calc-05 | `gst_split` was called correctly, but the generator abstained ("model") instead of quoting the tool output. |
+| calc-01, 02, 03, 06, 13 | Each answer gave the amounts the question asked for, correctly, but left out totals that the expected list also included (for example the invoice total). |
+
+No answer contained a number that was not in a tool output.
+
+### Routing on the 24 dev rate questions (tools on, no judge)
+
+| Measure | Result |
+|---|---|
+| Routed to `rate_lookup` | 24/24 |
+| Lookup returned a single row | 13/24 |
+| That row's rate equals the gold rate | 12/13 |
+| Answer states the gold rate | 13/24 (dev v4, tools off: 24/24 correct) |
+| Items whose outcome differs from dev v4 | 11 |
+
+<!-- Source: eval/results/tool_routing_dev.csv (run 2026-11-11T08:22:43+00:00) and
+eval/results/tool_routing_dev.jsonl; dev v4 from generation_dev_v4_judge-v2_items.jsonl. -->
+
+Why the 11 differ:
+- **9 failed calls:** the templated questions quote both the goods description and the tariff
+  code, and the planner passed both. `rate_lookup` accepts exactly one of them, so it rejected
+  the call.
+- **2 ambiguous lookups:** "air-conditioning machines" matches more than one schedule row, on
+  both dates.
+- **1 wrong row, not counted among the 11:** for tractors on 2025-10-01, word matching picked
+  the "road tractors for semi-trailers" row (9%), because the words of the exclusion "other than
+  road tractors…" also matched. The answer still stated the gold 2.5% by citing the retrieved
+  schedule row.
+
+**Plain reading:** with the tools on, the API answers the dev rate questions worse than the
+frozen pipeline without tools. The rate questions should not be routed through `rate_lookup`
+until it accepts a description and a tariff code together and handles exclusions.
+
+### Limits of the tools
+
+- **Rounding:** amounts use Decimal arithmetic rounded half up to 2 decimals. The tax is
+  rounded once on the combined rate, and CGST takes the odd paisa. This is an assumption; the
+  law is not the source of it.
+- **Combined rate:** `combined_rate` is twice the central rate, which assumes the State rate
+  equals the central rate. The State GST Acts and the IGST rate notifications are not indexed.
+- **Ambiguous matches:** a lookup that matches more than one row returns every candidate and no
+  rate, and the answer abstains.
+- **No citation for `gst_split`:** the IGST Act and the State GST Acts are not in the index,
+  and CGST section 9(1) is only an unverified snapshot row there, so the split cites nothing and
+  says so in a note.
+
+---
+
+## 9. Limitations and next steps
 
 | Limitation | Detail |
 |---|---|
