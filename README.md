@@ -20,8 +20,10 @@ versioned document corpus.
 | Generator cost per request (estimate) | about $0.0018 at list price; $0 on the Gemini free tier |
 
 Main test run with calculator tools off; calculator results reported separately. On a
-hand-written calculation set (n=15): tool selection 14/15, arguments 13/14, final-number exact
-match 5/12 (see [docs/RESULTS.md](docs/RESULTS.md), section 8).
+hand-written calculation set (n=15, second run): tool selection 15/15, arguments 14/14,
+requested amounts correct 10/12 (strict final-number match 6/12); with tools on, the 24 dev
+rate questions match the no-tool pipeline at 24/24 (see [docs/RESULTS.md](docs/RESULTS.md),
+section 8).
 
 <sub>Shipped API config replayed on the frozen test answers: 0/64 outcomes changed
 (guardrails, strict_claims, number check). Tool selection on test was not replayed; see
