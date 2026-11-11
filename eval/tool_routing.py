@@ -49,7 +49,9 @@ def main() -> None:
     records = []
     for item in items:
         key = item_key(item)
-        data = service.ask(AskRequest(question=item.question, reference_date=item.ref_date))
+        data = service.ask(
+            AskRequest(question=item.question, reference_date=item.ref_date.isoformat())
+        )
         data = data.model_dump(mode="json")
         lookups = [c for c in data["tool_calls"] if c["name"] == "rate_lookup"]
         gold = gold_rate(item.gold_answer)
