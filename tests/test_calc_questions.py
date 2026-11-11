@@ -62,3 +62,12 @@ def test_expected_results_match_the_tools(item) -> None:
         assert outputs[0].result["combined_rate"] == expected["tools"][1]["arguments"]["rate"]
     for number in expected["numbers"]:
         assert number in last.result.values() or number == last.result.get("rate")
+
+
+def test_requested_fields_name_expected_result_fields() -> None:
+    for item in ITEMS:
+        fields = item["requested_fields"]
+        if item["expected"]["outcome"] == "abstain" or not item["expected"]["tools"]:
+            assert fields == [], item["id"]
+        else:
+            assert fields and set(fields) <= set(item["expected"]["result"]), item["id"]

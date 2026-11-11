@@ -6,11 +6,15 @@ checks the routing, not the law:
 - tool selection: the tools called, in order, equal the expected ones (no tool for calc-15);
 - arguments: each expected call was made with equal arguments (numbers compared as Decimal,
   descriptions as content words, HSN as digits), over items that expect a tool;
-- final numbers: every expected number appears (as a value) in the answer's claims, over items
-  that expect an answer with numbers;
+- final numbers (strict): every number in the item's ``expected.numbers`` appears (as a
+  value) in the answer's claims, over items that expect an answer with numbers;
+- requested amounts: every field the question asks for (``requested_fields``, read from its
+  wording; values from ``expected.result``) appears in the answer's claims, over items that
+  request at least one field. The column was added after the first run;
 - outcome: answered or abstained as expected (with the expected abstention reason).
 
-    python -m eval.calc   ->  eval/results/calc_items.jsonl, eval/results/calc.csv (appended)
+    python -m eval.calc [--tag v2]   ->  eval/results/calc_items[_<tag>].jsonl, calc.csv
+    python -m eval.calc --rescore eval/results/calc_items.jsonl --note "..."   (no LLM calls)
 """
 
 from __future__ import annotations
@@ -31,6 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS = ROOT / "eval" / "questions_calc.jsonl"
 ITEMS_OUT = ROOT / "eval" / "results" / "calc_items.jsonl"
 SUMMARY_OUT = ROOT / "eval" / "results" / "calc.csv"
+METRICS = ("tool_selection", "arguments", "final_numbers", "requested_amounts", "outcome")
 
 
 def load(path: Path = QUESTIONS) -> list[dict[str, Any]]:
@@ -77,16 +82,21 @@ def score(item: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]:
         outcome = response["abstained"] and response["abstain_reason"] == expected["abstain_reason"]
     else:
         outcome = not response["abstained"]
+    written = {_dec(n) for claim in response["claims"] for n in numbers(claim["text"])}
     final_numbers = None
     if expected["outcome"] == "answer" and expected["numbers"]:
-        written = {_dec(n) for claim in response["claims"] for n in numbers(claim["text"])}
         final_numbers = not response["abstained"] and all(
             _dec(n) in written for n in expected["numbers"]
         )
+    requested = None
+    if expected["outcome"] == "answer" and item.get("requested_fields"):
+        wanted = [expected["result"][field] for field in item["requested_fields"]]
+        requested = not response["abstained"] and all(_dec(v) in written for v in wanted)
     return {
         "tool_selection": selection,
         "arguments": arguments,
         "final_numbers": final_numbers,
+        "requested_amounts": requested,
         "outcome": outcome,
     }
 
@@ -96,7 +106,65 @@ def rate(values: list[bool | None]) -> tuple[int, int]:
     return sum(scored), len(scored)
 
 
+def summarize(records: list[dict[str, Any]], note: str) -> dict[str, Any]:
+    summary = {"timestamp": datetime.now(UTC).isoformat(timespec="seconds"), "git_hash": git_hash()}
+    summary["n"] = len(records)
+    for key in METRICS:
+        hits, total = rate([r[key] for r in records])
+        summary[key] = f"{hits}/{total}"
+        summary[f"{key}_rate"] = round(hits / total, 3) if total else ""
+    summary["note"] = note
+    return summary
+
+
+def append_summary(summary: dict[str, Any], path: Path = SUMMARY_OUT) -> None:
+    """Append a row; when columns were added since the file was written, earlier rows keep
+    their values and the new columns are empty on them."""
+    fields = list(summary)
+    rows: list[dict[str, Any]] = []
+    if path.exists():
+        with path.open(encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            rows = list(reader)
+            fields = list(dict.fromkeys([*(reader.fieldnames or []), *summary]))
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows([*rows, summary])
+
+
+def rescore(items_file: Path, note: str) -> None:
+    """Score recorded responses again with the current questions file (no LLM calls)."""
+    items = {item["id"]: item for item in load()}
+    records = []
+    for line in items_file.read_text(encoding="utf-8").splitlines():
+        record = json.loads(line)
+        records.append(
+            {
+                "id": record["id"],
+                **score(items[record["id"]], record["response"]),
+                "response": record["response"],
+            }
+        )
+    for record in records:
+        print(record["id"], {k: record[k] for k in METRICS})
+    summary = summarize(records, note)
+    append_summary(summary)
+    print(json.dumps(summary, indent=1))
+
+
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Calculation eval through the API path.")
+    parser.add_argument("--tag", default="", help="run label: calc_items_<tag>.jsonl")
+    parser.add_argument("--note", default="", help="note stored on the summary row")
+    parser.add_argument("--rescore", type=Path, help="score a recorded items file again")
+    args = parser.parse_args()
+    if args.rescore:
+        rescore(args.rescore, args.note)
+        return
+
     from fastapi.testclient import TestClient
 
     from api.app import create_app, default_answerer
@@ -120,21 +188,12 @@ def main() -> None:
             f"{item['id']}: tools {[c['name'] for c in data['tool_calls']]} "
             f"abstained={data['abstained']}({data['abstain_reason']}) {scores}"
         )
-    with ITEMS_OUT.open("w", encoding="utf-8", newline="\n") as handle:
+    items_out = ITEMS_OUT.with_name(f"calc_items_{args.tag}.jsonl") if args.tag else ITEMS_OUT
+    with items_out.open("w", encoding="utf-8", newline="\n") as handle:
         for record in records:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-    summary = {"timestamp": datetime.now(UTC).isoformat(timespec="seconds"), "git_hash": git_hash()}
-    summary["n"] = len(records)
-    for key in ("tool_selection", "arguments", "final_numbers", "outcome"):
-        hits, total = rate([r[key] for r in records])
-        summary[key] = f"{hits}/{total}"
-        summary[f"{key}_rate"] = round(hits / total, 3) if total else ""
-    new = not SUMMARY_OUT.exists()
-    with SUMMARY_OUT.open("a", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(summary))
-        if new:
-            writer.writeheader()
-        writer.writerow(summary)
+    summary = summarize(records, args.note)
+    append_summary(summary)
     print(json.dumps(summary, indent=1))
 
 
